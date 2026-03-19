@@ -125,20 +125,7 @@ const finalMockExamQuestions: Question[] = Array.from({ length: 100 }, (_, i) =>
 }));
 
 // --- THEME & APP CONTEXT ---
-type AppContextType = {
-    theme: string;
-    toggleTheme: () => void;
-    colors: Record<string, string>;
-    user: string | null;
-    setUser: React.Dispatch<React.SetStateAction<string | null>>;
-    isFullScreen: boolean;
-    toggleFullScreen: () => void;
-    subjects: Subjects;
-    setSubjects: React.Dispatch<React.SetStateAction<Subjects>>;
-};
-
-const AppContext = createContext<AppContextType | null>(null);
-
+const AppContext = createContext<any>(null);
 const AppProvider = ({ children }: { children: ReactNode }) => {
     const [theme, setTheme] = useStickyState('dark', 'synapse-theme');
     const [user, setUser] = useStickyState<string | null>(null, 'synapse-user');
@@ -166,14 +153,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
 
     return <AppContext.Provider value={{ theme, toggleTheme, colors, user, setUser, isFullScreen, toggleFullScreen, subjects, setSubjects }}>{children}</AppContext.Provider>;
 };
-
-const useAppContext = () => {
-    const context = useContext(AppContext);
-    if (!context) {
-        throw new Error('useAppContext must be used within an AppProvider');
-    }
-    return context;
-};
+const useAppContext = () => useContext(AppContext);
 
 // --- MAIN APP COMPONENT ---
 export default function SynapseApp() {
@@ -383,7 +363,7 @@ const StudentDashboard = () => {
             <h2 className="text-2xl font-bold mt-8 mb-4">All Subjects</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                  {Object.entries(subjects).map(([name, data]) => (
-                    <SubjectCard key={name} name={name} data={data} />
+                    <SubjectCard key={name} name={name} data={data as Subject} />
                 ))}
             </div>
         </div>
@@ -445,7 +425,7 @@ const StudentModules = () => {
                         <button onClick={() => setOpenSubject(openSubject === name ? null : name)} className="w-full flex justify-between items-center p-4">
                             <div className="flex items-center gap-4">
                                 <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent2})`, color: 'white'}}>
-                                    <DynamicIcon name={data.iconName} size={20} />
+                                    <DynamicIcon name={(data as Subject).iconName} size={20} />
                                 </div>
                                 <span className="font-bold text-lg">{name}</span>
                             </div>
@@ -453,7 +433,7 @@ const StudentModules = () => {
                         </button>
                         {openSubject === name && (
                             <div className="p-4 border-t" style={{borderColor: colors.border}}>
-                                {data.modules.length > 0 ? data.modules.map(mod => <ModuleItem key={mod.title} module={mod} subjectName={name} />) : <p className="text-center opacity-60 py-4">Modules coming soon!</p>}
+                                {(data as Subject).modules.length > 0 ? (data as Subject).modules.map(mod => <ModuleItem key={mod.title} module={mod} subjectName={name} />) : <p className="text-center opacity-60 py-4">Modules coming soon!</p>}
                             </div>
                         )}
                     </div>
@@ -467,8 +447,8 @@ const ModuleItem = ({ module, subjectName }: { module: Module; subjectName: stri
     const { colors, setSubjects } = useAppContext();
     
     const toggleModuleCompletion = () => {
-        setSubjects((prevSubjects) => {
-            const newSubjects = JSON.parse(JSON.stringify(prevSubjects)) as Subjects;
+        setSubjects((prevSubjects: Subjects) => {
+            const newSubjects = JSON.parse(JSON.stringify(prevSubjects));
             const subject = newSubjects[subjectName];
             if (subject) {
                 const moduleIndex = subject.modules.findIndex((m: Module) => m.title === module.title);
@@ -503,7 +483,7 @@ const ModuleItem = ({ module, subjectName }: { module: Module; subjectName: stri
 const AssessmentHub = () => {
     const { colors, subjects } = useAppContext();
     const [quizState, setQuizState] = useState({ inQuiz: false, questions: [] as Question[], title: ''});
-    const allSubjectsCompleted = useMemo(() => Object.values(subjects).every(s => s.modulesCompleted), [subjects]);
+    const allSubjectsCompleted = useMemo(() => (Object.values(subjects) as Subject[]).every(s => s.modulesCompleted), [subjects]);
 
     if (quizState.inQuiz) return <QuizEngine questions={quizState.questions} title={quizState.title} onFinish={() => setQuizState({ inQuiz: false, questions: [], title: '' })} />;
 
@@ -542,7 +522,7 @@ const AssessmentHub = () => {
             <h2 className="text-2xl font-bold mb-4">Practice Assessments</h2>
             <div className="space-y-4">
                 {Object.entries(subjects).map(([name, data]) => (
-                    <AssessmentItem key={name} name={name} data={data} onStart={() => startPracticeTest(name)} />
+                    <AssessmentItem key={name} name={name} data={data as Subject} onStart={() => startPracticeTest(name)} />
                 ))}
             </div>
         </div>
@@ -644,10 +624,10 @@ const QuizEngine = ({ questions, title, onFinish }: { questions: Question[]; tit
                 <h2 className="text-xl font-bold mb-4 px-2">{title}</h2>
                 <div className="grid grid-cols-5 gap-2">
                     {Array.from({length: questions.length}).map((_,i) => (
-                        <button key={i} onClick={() => setCurrent(i)} className={`relative w-full h-12 text-md font-semibold rounded-lg ${current === i ? 'ring-2' : ''} ${answers[i] !== null ? 'opacity-70' : ''}`}
+                        <button key={i} onClick={() => setCurrent(i)} className={`relative w-full h-12 text-md font-semibold rounded-lg ring-2 ${answers[i] !== null ? 'opacity-70' : ''}`}
                           style={{
                             backgroundColor: answers[i] !== null ? '#2ECC71' : colors.input,
-                            ringColor: colors.accent
+                            [ '--tw-ring-color' as any]: colors.accent
                           }}
                         >
                             {i+1}
@@ -719,14 +699,13 @@ const ContentManager = () => {
     const handleQuestionUpdate = () => {
         try {
             const updatedQuestions = JSON.parse(questionJson);
-            setSubjects((prevSubjects) => {
-                const newSubjects = { ...prevSubjects };
-                newSubjects[selectedSubject] = {
-                    ...newSubjects[selectedSubject],
+            setSubjects((prevSubjects: Subjects) => ({
+                ...prevSubjects,
+                [selectedSubject]: {
+                    ...prevSubjects[selectedSubject],
                     questions: updatedQuestions
-                };
-                return newSubjects;
-            });
+                }
+            }));
             alert(`${selectedSubject} question bank updated!`);
         } catch (e) {
             alert('Error: Invalid JSON format.');
