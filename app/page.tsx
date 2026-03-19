@@ -115,11 +115,46 @@ const initialSubjects: Subjects = {
             { title: 'Module 3: Carbohydrates', unlocked: true, content: [], completed: true },
         ]
     },
-    'Hematology': { iconName: 'HeartPulse', modulesCompleted: false, questions: [], modules: [] },
-    'Microbiology': { iconName: 'Bug', modulesCompleted: false, questions: [], modules: [] },
-    'ISBB': { iconName: 'ShieldCheck', modulesCompleted: false, questions: [], modules: [] },
-    'Clinical Microscopy': { iconName: 'Pipette', modulesCompleted: false, questions: [], modules: [] },
-    'Histopathology': { iconName: 'BookImage', modulesCompleted: false, questions: [], modules: [] },
+    'Hematology': {
+        iconName: 'HeartPulse',
+        modulesCompleted: false,
+        questions: [],
+        modules: [
+            { title: 'Module 1: Introduction to Hematology', unlocked: true, content: [], completed: false },
+        ]
+    },
+    'Microbiology': {
+        iconName: 'Bug',
+        modulesCompleted: false,
+        questions: [],
+        modules: [
+            { title: 'Module 1: Introduction to Microbiology', unlocked: true, content: [], completed: false },
+        ]
+    },
+    'ISBB': {
+        iconName: 'ShieldCheck',
+        modulesCompleted: false,
+        questions: [],
+        modules: [
+            { title: 'Module 1: Immunohematology and Blood Banking', unlocked: true, content: [], completed: false },
+        ]
+    },
+    'Clinical Microscopy': {
+        iconName: 'Pipette',
+        modulesCompleted: false,
+        questions: [],
+        modules: [
+            { title: 'Module 1: Routine Urinalysis', unlocked: true, content: [], completed: false },
+        ]
+    },
+    'Histopathology': {
+        iconName: 'BookImage',
+        modulesCompleted: false,
+        questions: [],
+        modules: [
+            { title: 'Module 1: Tissue Processing', unlocked: true, content: [], completed: false },
+        ]
+    },
 };
 
 const finalMockExamQuestions: Question[] = Array.from({ length: 100 }, (_, i) => ({
