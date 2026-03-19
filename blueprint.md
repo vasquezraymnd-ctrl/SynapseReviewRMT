@@ -24,6 +24,7 @@ Synapse is a premium Learning Management System (LMS) for MedTech students, buil
     - **Practice Assessments:** Each subject has its own practice assessment, which unlocks only after the student completes all modules for that subject.
     - **Final Mock Exam:** A comprehensive 100-item mock exam that unlocks only after all individual subject assessments have been successfully completed.
 - **State Persistence:** The application uses the browser's `localStorage` to save and restore the user's theme preference, login status, and course progress, ensuring a seamless user experience across sessions.
+- **Two-Step Quiz Submission:** In the assessment quiz, users first select an answer and then click a "Submit" button to confirm their choice before proceeding to the next question. This prevents accidental submissions and allows for a more deliberate answering process.
 
 ## Design & UI
 
