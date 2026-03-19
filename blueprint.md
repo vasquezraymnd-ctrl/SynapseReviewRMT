@@ -31,7 +31,7 @@ Synapse is a premium Learning Management System (LMS) for MedTech students, buil
 
 ## Design & UI
 
-- **Logo:** A minimalist logo with the word "SYNAPSE" in the "Exo 2" font, with a pulsing dot to the right. The logo is enlarged on the login page for a more prominent effect.
+- **Responsive Logo:** The "SYNAPSE" logo with its pulsing dot is fully responsive, scaling gracefully in size and position across mobile, tablet, and desktop screens for a polished look on any device.
 - **Colors:** A Spotify-inspired blue theme. The dark mode features a deep, dark blue background (#040815) with vibrant blue accents (#00A0F0). The light mode uses a clean white background (#FFFFFF) with a professional blue accent (#0060F0).
 - **Dynamic Background:** A subtle, moving radial gradient adds depth and energy to the interface.
 - **Card-Based Layout:** A grid-based layout with large, visually engaging cards for each subject. Cards feature enhanced hover effects, including a smooth sliding "Play" button and a prominent "glow" effect.
