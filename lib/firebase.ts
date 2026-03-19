@@ -1,32 +1,39 @@
+
 import admin from 'firebase-admin';
 
-// Check if the app is already initialized to prevent errors
-if (!admin.apps.length) {
-  const serviceAccount: admin.ServiceAccount = {
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    // Use environment variable for private key, ensuring it's correctly formatted
-    privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
-  };
+let db: admin.firestore.Firestore;
 
-  // Ensure all required credentials are provided
-  if (!serviceAccount.projectId || !serviceAccount.clientEmail || !serviceAccount.privateKey) {
-    throw new Error('Firebase Admin SDK credentials are not set in environment variables.');
+function getDb() {
+  if (!admin.apps.length) {
+    const serviceAccount: admin.ServiceAccount = {
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+    };
+
+    if (!serviceAccount.projectId || !serviceAccount.clientEmail || !serviceAccount.privateKey) {
+      throw new Error('Firebase Admin SDK credentials are not set in environment variables. Please check your .env.local file.');
+    }
+
+    try {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+      console.log('Firebase Admin SDK initialized.');
+    } catch (error: any) {
+      // Prevent re-initialization error
+      if (error.code !== 'auth/invalid-credential') {
+         console.error('Firebase Admin SDK initialization error:', error);
+         throw error; // Re-throw other errors
+      }
+    }
+  }
+  
+  if (!db) {
+    db = admin.firestore();
   }
 
-  try {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-    });
-    console.log('Firebase Admin SDK initialized.');
-  } catch (error) {
-    // Re-throw the error to ensure it's not swallowed
-    console.error('Firebase Admin SDK initialization error:', error);
-    throw error;
-  }
+  return db;
 }
 
-// Export the firestore database instance
-const db = admin.firestore();
-
-export { db };
+export { getDb };
