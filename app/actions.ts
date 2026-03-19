@@ -1,7 +1,7 @@
 
 'use server';
 
-import { getDb, getStorage } from '../lib/firebase';
+import { db, storage } from '../lib/firebase';
 import { Question, Subjects, Module, File as DbFile, Subject } from './types';
 import { z } from 'zod';
 import { Readable } from 'stream';
@@ -15,7 +15,6 @@ const QuestionSchema = z.array(z.object({
 }));
 
 export async function getSubjects(): Promise<Subjects> {
-    const db = getDb();
     const subjectsSnapshot = await db.collection('subjects').get();
     const subjects: Subjects = {};
     subjectsSnapshot.forEach(doc => {
@@ -25,7 +24,6 @@ export async function getSubjects(): Promise<Subjects> {
 }
 
 export async function getSubjectQuestions(subjectName: string): Promise<Question[]> {
-    const db = getDb();
     const doc = await db.collection('subjects').doc(subjectName).get();
     if (!doc.exists) {
         return [];
@@ -42,7 +40,6 @@ export async function handleLocalUploadAndUpdate(formData: FormData, subjectName
             return { success: false, error: 'No file provided.' };
         }
 
-        const storage = getStorage();
         const bucket = storage.bucket();
         const filePath = `uploads/${subjectName}/${moduleTitle}/${file.name}`;
         const fileBuffer = Buffer.from(await file.arrayBuffer());
@@ -62,7 +59,6 @@ export async function handleLocalUploadAndUpdate(formData: FormData, subjectName
 
         const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
 
-        const db = getDb();
         const subjectRef = db.collection('subjects').doc(subjectName);
         const subjectDoc = await subjectRef.get();
 
@@ -104,7 +100,6 @@ export async function handleLocalUploadAndUpdate(formData: FormData, subjectName
 export async function updateSubjectQuestions(subjectName: string, questionsJson: string): Promise<{ success: boolean, error?: string }> {
     try {
         const questions = QuestionSchema.parse(JSON.parse(questionsJson));
-        const db = getDb();
         await db.collection('subjects').doc(subjectName).update({ questions });
         return { success: true };
     } catch (error) {
@@ -117,20 +112,17 @@ export async function updateSubjectQuestions(subjectName: string, questionsJson:
 }
 
 export async function getUserProgress(userId: string) {
-    const db = getDb();
     // Implement actual user progress fetching if needed
     return {}; 
 }
 
 export async function updateModuleCompletion(userId: string, subjectName: string, moduleTitle: string, completed: boolean) {
-    const db = getDb();
     // Implement actual user progress update if needed
     return { success: true };
 }
 
 export async function seedInitialData(): Promise<{ success: boolean, message?: string, error?: string }> {
     try {
-        const db = getDb();
         const subjectsRef = db.collection('subjects');
         const snapshot = await subjectsRef.get();
 
