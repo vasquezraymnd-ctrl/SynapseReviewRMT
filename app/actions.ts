@@ -2,6 +2,8 @@
 
 import admin from '../lib/firebase-admin';
 import { Subjects, Subject, Module, Question, File } from './types';
+import fs from 'fs/promises';
+import path from 'path';
 
 const db = admin.firestore();
 
@@ -102,11 +104,7 @@ export async function getSubjects() {
     const subjects: Subjects = {};
     for (const doc of snapshot.docs) {
         const subjectData = doc.data() as Subject;
-        const modulesWithContent = await Promise.all(subjectData.modules.map(async (module) => {
-            // In the new structure, content is now part of the module document directly
-            return module;
-        }));
-        subjects[doc.id] = { ...subjectData, modules: modulesWithContent };
+        subjects[doc.id] = { ...subjectData };
     }
 
     return subjects;
@@ -152,27 +150,54 @@ export async function updateModuleCompletion(userId: string, subjectName: string
     }
 }
 
-export async function addContentToModule(subjectName: string, moduleTitle: string, file: File) {
-    const subjectRef = db.collection('subjects').doc(subjectName);
+export async function handleLocalUploadAndUpdate(formData: FormData, subjectName: string, moduleTitle: string) {
+    const file = formData.get('file') as globalThis.File | null;
+
+    if (!file) {
+        return { success: false, error: 'No file provided.' };
+    }
+
     try {
+        // 1. Save the file locally
+        const bytes = await file.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+        await fs.mkdir(uploadDir, { recursive: true });
+
+        const filePath = path.join(uploadDir, file.name);
+        await fs.writeFile(filePath, buffer);
+
+        // 2. Prepare data for Firestore
+        const publicUrl = `/uploads/${file.name}`;
+        const newFileForDb: File = {
+            name: file.name,
+            url: publicUrl,
+            type: file.type.startsWith('video') ? 'video' : 'pdf'
+        };
+
+        // 3. Update Firestore
+        const subjectRef = db.collection('subjects').doc(subjectName);
         const doc = await subjectRef.get();
         if (!doc.exists) throw new Error('Subject not found');
-        
+
         const subjectData = doc.data() as Subject;
         const newModules = subjectData.modules.map(m => {
             if (m.title === moduleTitle) {
-                // Create a new content array with the new file, avoiding duplicates
-                const newContent = m.content ? [...m.content.filter(f => f.name !== file.name), file] : [file];
+                const newContent = m.content ? [...m.content.filter(f => f.name !== newFileForDb.name), newFileForDb] : [newFileForDb];
                 return { ...m, content: newContent };
             }
             return m;
         });
 
         await subjectRef.update({ modules: newModules });
-        return { success: true };
+
+        return { success: true, fileUrl: publicUrl };
+
     } catch (error) {
-        console.error('Error adding content to module:', error);
-        return { success: false, error: 'Failed to update module content.' };
+        console.error('Error handling file upload:', error);
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+        return { success: false, error: errorMessage };
     }
 }
 
@@ -181,12 +206,10 @@ export async function updateSubjectQuestions(subjectName: string, questionsJson:
     try {
         const questions: Question[] = JSON.parse(questionsJson);
         
-        // Delete all existing questions in a batch
         const batch = db.batch();
         const snapshot = await questionsRef.get();
         snapshot.docs.forEach(doc => batch.delete(doc.ref));
         
-        // Add all new questions in the same batch
         questions.forEach(q => {
             const questionRef = questionsRef.doc(String(q.id));
             batch.set(questionRef, q);

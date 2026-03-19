@@ -1,7 +1,5 @@
 'use client';
 import React, { useState, useEffect, useMemo, createContext, useContext, ReactNode, useCallback } from 'react';
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { storage } from '../lib/firebase';
 import { useDropzone } from 'react-dropzone';
 import {
     BarChart3, BookOpen, CheckCircle, ChevronDown, ClipboardCheck, Clock, Droplets, Edit, FileText, FlaskConical, 
@@ -11,7 +9,7 @@ import {
 } from 'lucide-react';
 import Confetti from 'react-confetti';
 import { IconName, File, Question, Module, Subject, Subjects } from './types';
-import { getSubjects, getSubjectQuestions, updateModuleCompletion, getUserProgress, addContentToModule, updateSubjectQuestions } from './actions';
+import { getSubjects, getSubjectQuestions, updateModuleCompletion, getUserProgress, handleLocalUploadAndUpdate, updateSubjectQuestions } from './actions';
 
 
 // --- DYNAMIC ICON COMPONENT ---
@@ -227,7 +225,6 @@ const ContentManager = () => {
     const [selectedModule, setSelectedModule] = useState(subjects[Object.keys(subjects)[0]]?.modules[0]?.title || '');
     const [questionJson, setQuestionJson] = useState('');
     const [uploading, setUploading] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState(0);
     const [file, setFile] = useState<globalThis.File | null>(null);
     const [statusMessage, setStatusMessage] = useState<{type: 'success' | 'error', msg: string} | null>(null);
 
@@ -269,35 +266,26 @@ const ContentManager = () => {
         setTimeout(() => setStatusMessage(null), 3000);
     }
 
-    const handleFileUpload = () => {
+    const handleFileUpload = async () => {
       if (!file || !selectedModule) return;
       setUploading(true);
-      setUploadProgress(0);
       setStatusMessage({type: 'success', msg: 'Starting upload...'});
-      const storageRef = ref(storage, `${selectedSubject}/${selectedModule}/${file.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
+      
+      const formData = new FormData();
+      formData.append('file', file);
 
-      uploadTask.on('state_changed', 
-        (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-        (error) => {
-          console.error("Upload failed", error);
-          setStatusMessage({type: 'error', msg: `Upload failed: ${error.message}`});
-          setUploading(false); setFile(null); setUploadProgress(0); setTimeout(() => setStatusMessage(null), 3000);
-        }, 
-        () => {
-          getDownloadURL(uploadTask.snapshot.ref).then(async (downloadURL) => {
-            const newFile: File = { name: file.name, url: downloadURL, type: file.type.startsWith('video') ? 'video' : 'pdf' };
-            const result = await addContentToModule(selectedSubject, selectedModule, newFile);
-            if (result.success) {
-                setStatusMessage({type: 'success', msg: 'File uploaded and linked successfully!'});
-                forceReloadSubjects(); // Reload subjects to show new content
-            } else {
-                setStatusMessage({type: 'error', msg: `Error linking file: ${result.error}`});
-            }
-            setUploading(false); setFile(null); setUploadProgress(0); setTimeout(() => setStatusMessage(null), 5000);
-          });
-        }
-      );
+      const result = await handleLocalUploadAndUpdate(formData, selectedSubject, selectedModule);
+
+      if (result.success) {
+          setStatusMessage({type: 'success', msg: 'File uploaded and linked successfully!'});
+          forceReloadSubjects(); // Reload subjects to show new content
+      } else {
+          setStatusMessage({type: 'error', msg: `Error uploading file: ${result.error}`});
+      }
+
+      setUploading(false);
+      setFile(null);
+      setTimeout(() => setStatusMessage(null), 5000);
     };
 
     if (!selectedSubject) return <div className='p-6'><h1 className="text-4xl font-extrabold mb-8">Content Manager</h1><p>Loading subjects...</p></div>;
@@ -335,7 +323,7 @@ const ContentManager = () => {
                       <div className="mt-4">
                         <p>Selected file: {file.name}</p>
                         <button onClick={handleFileUpload} disabled={uploading || !selectedModule} className="w-full py-3 mt-2 font-bold text-white rounded-lg disabled:opacity-50" style={{backgroundColor: colors.accent}}>
-                          {uploading ? `Uploading... ${uploadProgress.toFixed(0)}%` : 'Upload File'}
+                          {uploading ? `Uploading...` : 'Upload File'}
                         </button>
                       </div>
                     )}
