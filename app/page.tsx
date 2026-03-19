@@ -107,13 +107,13 @@ function AdminDashboard() {
 
   return (
     <div className="p-8 w-full max-w-7xl">
-      <h1 className="text-4xl font-bold mb-8 text-center">Teacher's Lounge (Admin)</h1>
+      <h1 className="text-4xl font-bold mb-8 text-center">Teacher&apos;s Lounge (Admin)</h1>
       {subjects ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {Object.entries(subjects).map(([name, subject]) => (
             <div key={name} className="bg-gray-800 shadow-xl rounded-lg p-6">
               <h2 className="text-3xl font-semibold mb-6 text-white flex items-center">
-                {React.createElement(ICONS[subject.iconName] || Beaker, { className: 'mr-3'})} {name}
+                {React.createElement(ICONS[subject.iconName] || Beaker, { className: 'mr-3' })} {name}
               </h2>
               {subject.modules.map((module: Module) => (
                 <ModuleUploader key={module.title} subjectName={name} module={module} onDrop={onDrop} />
