@@ -362,8 +362,8 @@ const StudentDashboard = () => {
 
             <h2 className="text-2xl font-bold mt-8 mb-4">All Subjects</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {Object.entries(subjects).map(([name, data]) => (
-                    <SubjectCard key={name} name={name} data={data} />
+                 {Object.entries(subjects).map(([name, data]) => (
+                    <SubjectCard key={name} name={name} data={data as Subject} />
                 ))}
             </div>
         </div>
@@ -414,7 +414,7 @@ const SubjectCard = ({ name, data }: { name: string; data: Subject }) => {
 // --- MODULES & ASSESSMENTS ---
 const StudentModules = () => {
     const { colors, subjects } = useAppContext();
-    const [openSubject, setOpenSubject] = useState('Clinical Chemistry');
+    const [openSubject, setOpenSubject] = useState<string | null>('Clinical Chemistry');
 
     return(
         <div className='p-6'>
@@ -425,7 +425,7 @@ const StudentModules = () => {
                         <button onClick={() => setOpenSubject(openSubject === name ? null : name)} className="w-full flex justify-between items-center p-4">
                             <div className="flex items-center gap-4">
                                 <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent2})`, color: 'white'}}>
-                                    <DynamicIcon name={data.iconName} size={20} />
+                                    <DynamicIcon name={(data as Subject).iconName} size={20} />
                                 </div>
                                 <span className="font-bold text-lg">{name}</span>
                             </div>
@@ -433,7 +433,7 @@ const StudentModules = () => {
                         </button>
                         {openSubject === name && (
                             <div className="p-4 border-t" style={{borderColor: colors.border}}>
-                                {data.modules.length > 0 ? data.modules.map(mod => <ModuleItem key={mod.title} module={mod} subjectName={name} />) : <p className="text-center opacity-60 py-4">Modules coming soon!</p>}
+                                {(data as Subject).modules.length > 0 ? (data as Subject).modules.map(mod => <ModuleItem key={mod.title} module={mod} subjectName={name} />) : <p className="text-center opacity-60 py-4">Modules coming soon!</p>}
                             </div>
                         )}
                     </div>
@@ -447,14 +447,14 @@ const ModuleItem = ({ module, subjectName }: { module: Module; subjectName: stri
     const { colors, setSubjects } = useAppContext();
     
     const toggleModuleCompletion = () => {
-        setSubjects(prevSubjects => {
+        setSubjects((prevSubjects: Subjects) => {
             const newSubjects = JSON.parse(JSON.stringify(prevSubjects));
             const subject = newSubjects[subjectName];
             if (subject) {
-                const moduleIndex = subject.modules.findIndex(m => m.title === module.title);
+                const moduleIndex = subject.modules.findIndex((m: Module) => m.title === module.title);
                 if (moduleIndex !== -1) {
                     subject.modules[moduleIndex].completed = !subject.modules[moduleIndex].completed;
-                    subject.modulesCompleted = subject.modules.every(m => m.completed);
+                    subject.modulesCompleted = subject.modules.every((m: Module) => m.completed);
                 }
             }
             return newSubjects;
@@ -483,7 +483,7 @@ const ModuleItem = ({ module, subjectName }: { module: Module; subjectName: stri
 const AssessmentHub = () => {
     const { colors, subjects } = useAppContext();
     const [quizState, setQuizState] = useState({ inQuiz: false, questions: [] as Question[], title: ''});
-    const allSubjectsCompleted = useMemo(() => Object.values(subjects).every(s => s.modulesCompleted), [subjects]);
+    const allSubjectsCompleted = useMemo(() => Object.values(subjects).every((s: Subject) => s.modulesCompleted), [subjects]);
 
     if (quizState.inQuiz) return <QuizEngine questions={quizState.questions} title={quizState.title} onFinish={() => setQuizState({ inQuiz: false, questions: [], title: '' })} />;
 
@@ -522,7 +522,7 @@ const AssessmentHub = () => {
             <h2 className="text-2xl font-bold mb-4">Practice Assessments</h2>
             <div className="space-y-4">
                 {Object.entries(subjects).map(([name, data]) => (
-                    <AssessmentItem key={name} name={name} data={data} onStart={() => startPracticeTest(name)} />
+                    <AssessmentItem key={name} name={name} data={data as Subject} onStart={() => startPracticeTest(name)} />
                 ))}
             </div>
         </div>
@@ -699,7 +699,7 @@ const ContentManager = () => {
     const handleQuestionUpdate = () => {
         try {
             const updatedQuestions = JSON.parse(questionJson);
-            setSubjects(prevSubjects => ({
+            setSubjects((prevSubjects: Subjects) => ({
                 ...prevSubjects,
                 [selectedSubject]: {
                     ...prevSubjects[selectedSubject],
