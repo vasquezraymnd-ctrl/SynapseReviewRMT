@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useMemo, createContext, useContext } from 'react';
+import React, { useState, useEffect, useMemo, createContext, useContext, ReactNode } from 'react';
 import {
     BarChart3, BookOpen, CheckCircle, ChevronDown, ClipboardCheck, Clock, Droplets, Edit, FileText, FlaskConical, 
     Home, Layers, Lock, LogOut, Maximize, Menu, Microscope, Moon, Play, Search, Shield, Sun, TestTube, Timer, 
@@ -24,7 +24,9 @@ const iconComponents = {
   Layers
 };
 
-const DynamicIcon = ({ name, ...props }) => {
+type IconName = keyof typeof iconComponents;
+
+const DynamicIcon = ({ name, ...props }: { name: IconName; [key: string]: any }) => {
   const IconComponent = iconComponents[name];
   if (!IconComponent) {
     return null; // Silently fail if icon name is invalid
@@ -33,8 +35,8 @@ const DynamicIcon = ({ name, ...props }) => {
 };
 
 // --- LOCAL STORAGE HOOK (SSR/HYDRATION-SAFE) ---
-function useStickyState(defaultValue, key) {
-  const [value, setValue] = useState(defaultValue);
+function useStickyState<T>(defaultValue: T, key: string): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const [value, setValue] = useState<T>(defaultValue);
 
   useEffect(() => {
     const stickyValue = window.localStorage.getItem(key);
@@ -47,7 +49,7 @@ function useStickyState(defaultValue, key) {
         setValue(defaultValue);
       }
     }
-  }, [key]);
+  }, [key, defaultValue]);
 
   useEffect(() => {
     window.localStorage.setItem(key, JSON.stringify(value));
@@ -57,7 +59,33 @@ function useStickyState(defaultValue, key) {
 }
 
 // --- MOCK DATA & CONFIGURATION ---
-const clinicalChemistryQuestions = Array.from({ length: 100 }, (_, i) => ({
+type Question = {
+    id: number;
+    question: string;
+    options: string[];
+    answer: string;
+    rationale: string;
+};
+
+type Module = {
+    title: string;
+    unlocked: boolean;
+    content: { pdfs: number; videos: number };
+    completed: boolean;
+};
+
+type Subject = {
+    iconName: IconName;
+    modulesCompleted: boolean;
+    questions: Question[];
+    modules: Module[];
+};
+
+type Subjects = {
+    [key: string]: Subject;
+};
+
+const clinicalChemistryQuestions: Question[] = Array.from({ length: 100 }, (_, i) => ({
     id: i,
     question: `What is the significance of elevated cardiac troponin I (cTnI) in a patient presenting with chest pain? #${i + 1}`,
     options: [
@@ -70,7 +98,7 @@ const clinicalChemistryQuestions = Array.from({ length: 100 }, (_, i) => ({
     rationale: 'Cardiac troponins (cTnI and cTnT) are highly sensitive and specific biomarkers for myocardial injury, making them the gold standard for diagnosing Myocardial Infarction.'
 }));
 
-const initialSubjects = {
+const initialSubjects: Subjects = {
     'Clinical Chemistry': {
         iconName: 'Beaker',
         modulesCompleted: true,
@@ -88,7 +116,7 @@ const initialSubjects = {
     'Histopathology': { iconName: 'BookImage', modulesCompleted: false, questions: [], modules: [] },
 };
 
-const finalMockExamQuestions = Array.from({ length: 100 }, (_, i) => ({
+const finalMockExamQuestions: Question[] = Array.from({ length: 100 }, (_, i) => ({
   id: i,
   question: `This is a comprehensive mock exam question #${i + 1}. Which of the following is a gram-positive bacterium?`,
   options: ['Staphylococcus aureus', 'Escherichia coli', 'Pseudomonas aeruginosa', 'Klebsiella pneumoniae'],
@@ -97,11 +125,11 @@ const finalMockExamQuestions = Array.from({ length: 100 }, (_, i) => ({
 }));
 
 // --- THEME & APP CONTEXT ---
-const AppContext = createContext(null);
-const AppProvider = ({ children }) => {
+const AppContext = createContext<any>(null);
+const AppProvider = ({ children }: { children: ReactNode }) => {
     const [theme, setTheme] = useStickyState('dark', 'synapse-theme');
-    const [user, setUser] = useStickyState(null, 'synapse-user');
-    const [subjects, setSubjects] = useStickyState(initialSubjects, 'synapse-subjects-v2');
+    const [user, setUser] = useStickyState<string | null>(null, 'synapse-user');
+    const [subjects, setSubjects] = useStickyState<Subjects>(initialSubjects, 'synapse-subjects-v2');
     const [isFullScreen, setIsFullScreen] = useState(false);
 
     const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light');
@@ -156,7 +184,7 @@ function AppContainer() {
 }
 
 // --- LOADING SCREEN ---
-const LoadingScreen = ({ onLoaded }) => {
+const LoadingScreen = ({ onLoaded }: { onLoaded: () => void }) => {
     const { colors } = useAppContext();
 
     useEffect(() => {
@@ -206,8 +234,8 @@ const LoginPage = () => {
             <div className="w-full max-w-sm p-8 rounded-3xl" style={{ background: `linear-gradient(145deg, ${colors.card}, ${colors.bg})`, boxShadow: `0 12px 64px ${colors.shadow}` }}>
                 <h2 className="text-4xl font-bold text-center mb-8">Log In</h2>
                 <div className="space-y-6">
-                    <input type="email" placeholder="Email Address" className="w-full p-4 border rounded-xl bg-transparent transition-all focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent" style={{borderColor: colors.border, outline: 'none', '--tw-ring-color': colors.accent}} />
-                    <input type="password" placeholder="Password" className="w-full p-4 border rounded-xl bg-transparent transition-all focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent" style={{borderColor: colors.border, outline: 'none', '--tw-ring-color': colors.accent}}/>
+                    <input type="email" placeholder="Email Address" className="w-full p-4 border rounded-xl bg-transparent transition-all focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent" style={{borderColor: colors.border, outline: 'none', '--tw-ring-color': colors.accent} as React.CSSProperties} />
+                    <input type="password" placeholder="Password" className="w-full p-4 border rounded-xl bg-transparent transition-all focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent" style={{borderColor: colors.border, outline: 'none', '--tw-ring-color': colors.accent} as React.CSSProperties}/>
                 </div>
                 <div className="my-8">
                     <button onClick={() => setUser('student')} className="w-full py-4 font-bold text-white rounded-xl transition-transform hover:scale-105 shadow-lg" style={{backgroundColor: colors.accent, boxShadow: `0 8px 32px rgba(0, 160, 240, 0.4)`}}>
@@ -258,7 +286,7 @@ const LmsLayout = () => {
     );
 };
 
-const BottomNavBar = ({ activePage, setActivePage }) => {
+const BottomNavBar = ({ activePage, setActivePage }: { activePage: string; setActivePage: (page: string) => void }) => {
     const { colors, user } = useAppContext();
     const studentItems = { 'Dashboard': <Home />, 'My Courses': <BookOpen />, 'Assessments': <ClipboardCheck />, 'Account': <UserCircle /> };
     const adminItems = { 'Dashboard': <Home />, 'Content Manager': <Upload />, 'Analytics': <BarChart3 />, 'Account': <UserCircle /> };
@@ -365,7 +393,7 @@ const ContinueStudyingCard = () => {
     )
 }
 
-const SubjectCard = ({ name, data }) => {
+const SubjectCard = ({ name, data }: { name: string; data: Subject }) => {
     const { colors } = useAppContext();
     return (
         <div className="group rounded-2xl shadow-lg overflow-hidden relative p-4 flex flex-col justify-between transition-all hover:scale-105 hover:shadow-2xl" style={{ background: colors.card, minHeight: '220px' }}>
@@ -415,7 +443,7 @@ const StudentModules = () => {
     );
 }
 
-const ModuleItem = ({ module, subjectName }) => {
+const ModuleItem = ({ module, subjectName }: { module: Module; subjectName: string }) => {
     const { colors, setSubjects } = useAppContext();
     
     const toggleModuleCompletion = () => {
@@ -454,12 +482,12 @@ const ModuleItem = ({ module, subjectName }) => {
 
 const AssessmentHub = () => {
     const { colors, subjects } = useAppContext();
-    const [quizState, setQuizState] = useState({ inQuiz: false, questions: [], title: ''});
+    const [quizState, setQuizState] = useState({ inQuiz: false, questions: [] as Question[], title: ''});
     const allSubjectsCompleted = useMemo(() => Object.values(subjects).every(s => s.modulesCompleted), [subjects]);
 
     if (quizState.inQuiz) return <QuizEngine questions={quizState.questions} title={quizState.title} onFinish={() => setQuizState({ inQuiz: false, questions: [], title: '' })} />;
 
-    const startPracticeTest = (subjectName) => {
+    const startPracticeTest = (subjectName: string) => {
         const subject = subjects[subjectName];
         if (subject && subject.questions.length > 0) {
             setQuizState({ inQuiz: true, questions: subject.questions, title: `${subjectName} Practice Exam` });
@@ -501,7 +529,7 @@ const AssessmentHub = () => {
     );
 }
 
-const AssessmentItem = ({ name, data, onStart }) => {
+const AssessmentItem = ({ name, data, onStart }: { name: string; data: Subject; onStart: () => void }) => {
     const { colors } = useAppContext();
     const isLocked = !data.modulesCompleted;
 
@@ -530,11 +558,11 @@ const AssessmentItem = ({ name, data, onStart }) => {
     );
 };
 
-const QuizEngine = ({ questions, title, onFinish }) => {
+const QuizEngine = ({ questions, title, onFinish }: { questions: Question[]; title: string; onFinish: () => void }) => {
     const { colors, toggleFullScreen, isFullScreen } = useAppContext();
     const [current, setCurrent] = useState(0);
-    const [answers, setAnswers] = useState(() => Array(questions.length).fill(null));
-    const [bookmarks, setBookmarks] = useState(() => Array(questions.length).fill(false));
+    const [answers, setAnswers] = useState<(string | null)[]>(() => Array(questions.length).fill(null));
+    const [bookmarks, setBookmarks] = useState<boolean[]>(() => Array(questions.length).fill(false));
     const [timeLeft, setTimeLeft] = useState(questions.length * 72); // 1.2 min per question
     const [showResult, setShowResult] = useState(false);
     const [showConfetti, setShowConfetti] = useState(false);
@@ -549,7 +577,7 @@ const QuizEngine = ({ questions, title, onFinish }) => {
         };
     }, []);
 
-    const handleAnswer = (option) => { 
+    const handleAnswer = (option: string) => { 
         const newAns = [...answers]; newAns[current] = option; setAnswers(newAns); 
         if(current < questions.length - 1) setCurrent(current + 1); else { setShowResult(true); checkScore(newAns); }
     };
@@ -560,7 +588,7 @@ const QuizEngine = ({ questions, title, onFinish }) => {
         setBookmarks(newBookmarks);
     }
 
-    const checkScore = (finalAnswers) => {
+    const checkScore = (finalAnswers: (string | null)[]) => {
         const score = finalAnswers.reduce((acc, ans, i) => acc + (ans === questions[i].answer ? 1 : 0), 0);
         if (Math.round(score/questions.length*100) >= 75) { setShowConfetti(true); setTimeout(() => setShowConfetti(false), 8000); }
     };
@@ -625,7 +653,7 @@ const QuizEngine = ({ questions, title, onFinish }) => {
     );
 }
 
-const ReviewMode = ({ questions, answers, onExit }) => {
+const ReviewMode = ({ questions, answers, onExit }: { questions: Question[]; answers: (string | null)[]; onExit: () => void }) => {
     const { colors } = useAppContext();
     return (
         <div className="p-4 md:p-8">
@@ -664,7 +692,7 @@ const ContentManager = () => {
         }
     }, [selectedSubject, subjects]);
 
-    const handleSubjectChange = (e) => {
+    const handleSubjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         setSelectedSubject(e.target.value);
     }
 
@@ -695,7 +723,7 @@ const ContentManager = () => {
                     value={selectedSubject}
                     onChange={handleSubjectChange}
                     className="w-full p-4 rounded-xl border transition-all focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent"
-                    style={{borderColor: colors.border, backgroundColor: colors.input, '--tw-ring-color': colors.accent}}
+                    style={{borderColor: colors.border, backgroundColor: colors.input, '--tw-ring-color': colors.accent} as React.CSSProperties}
                 >
                     {Object.keys(subjects).map(name => <option key={name} value={name}>{name}</option>)}
                 </select>
