@@ -780,6 +780,7 @@ const ContentManager = () => {
     const handleFileUpload = () => {
       if (!file || !selectedModule) return;
       setUploading(true);
+      setUploadProgress(0);
       const storageRef = ref(storage, `${selectedSubject}/${selectedModule}/${file.name}`);
       const uploadTask = uploadBytesResumable(storageRef, file);
 
@@ -790,8 +791,10 @@ const ContentManager = () => {
         }, 
         (error) => {
           console.error("Upload failed", error);
-          alert("Upload failed!");
+          alert("Upload failed! Please check the console for details.");
           setUploading(false);
+          setUploadProgress(0);
+          setFile(null);
         }, 
         () => {
           getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
@@ -806,6 +809,13 @@ const ContentManager = () => {
             });
             alert('File uploaded successfully!');
             setUploading(false);
+            setFile(null);
+            setUploadProgress(0);
+          }).catch(error => {
+            console.error("Failed to get download URL", error);
+            alert("Upload complete, but failed to get download URL. Please check the console.");
+            setUploading(false);
+            setUploadProgress(0);
             setFile(null);
           });
         }
@@ -858,7 +868,7 @@ const ContentManager = () => {
                       <div className="mt-4">
                         <p>Selected file: {file.name}</p>
                         <button onClick={handleFileUpload} disabled={uploading || !selectedModule} className="w-full py-2 mt-2 font-bold text-white rounded-lg disabled:opacity-50" style={{backgroundColor: colors.accent}}>
-                          {uploading ? `Uploading... ${uploadProgress.toFixed(0)}%` : 'Upload File'}
+                          {uploading ? (uploadProgress < 100 ? `Uploading... ${uploadProgress.toFixed(0)}%` : 'Finalizing upload...') : 'Upload File'}
                         </button>
                       </div>
                     )}
