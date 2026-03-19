@@ -1,7 +1,7 @@
 'use server';
 
 import admin from '../lib/firebase-admin';
-import { Subjects, Subject, Module, Question } from './types'; // Assuming types are moved to a separate file
+import { Subjects, Subject, Module, Question, File } from './types';
 
 const db = admin.firestore();
 
@@ -100,16 +100,21 @@ export async function getSubjects() {
     }
 
     const subjects: Subjects = {};
-    snapshot.forEach(doc => {
-        subjects[doc.id] = doc.data() as Subject;
-    });
+    for (const doc of snapshot.docs) {
+        const subjectData = doc.data() as Subject;
+        const modulesWithContent = await Promise.all(subjectData.modules.map(async (module) => {
+            // In the new structure, content is now part of the module document directly
+            return module;
+        }));
+        subjects[doc.id] = { ...subjectData, modules: modulesWithContent };
+    }
 
     return subjects;
 }
 
 export async function getSubjectQuestions(subjectName: string): Promise<Question[]> {
     const questionsRef = db.collection('subjects').doc(subjectName).collection('questions');
-    const snapshot = await questionsRef.get();
+    const snapshot = await questionsRef.orderBy('id').get();
     if(snapshot.empty) return [];
     return snapshot.docs.map(doc => doc.data() as Question);
 }
@@ -117,7 +122,7 @@ export async function getSubjectQuestions(subjectName: string): Promise<Question
 export async function getUserProgress(userId: string) {
     const progressRef = db.collection('users').doc(userId).collection('progress');
     const snapshot = await progressRef.get();
-    if (snapshot.empty) return {}; // Return empty object if no progress
+    if (snapshot.empty) return {};
 
     const progress: { [key: string]: any } = {};
     snapshot.forEach(doc => {
@@ -144,5 +149,56 @@ export async function updateModuleCompletion(userId: string, subjectName: string
     } catch (error) {
         console.error('Error updating module completion:', error);
         return { success: false, error: 'Failed to update progress.' };
+    }
+}
+
+export async function addContentToModule(subjectName: string, moduleTitle: string, file: File) {
+    const subjectRef = db.collection('subjects').doc(subjectName);
+    try {
+        const doc = await subjectRef.get();
+        if (!doc.exists) throw new Error('Subject not found');
+        
+        const subjectData = doc.data() as Subject;
+        const newModules = subjectData.modules.map(m => {
+            if (m.title === moduleTitle) {
+                // Create a new content array with the new file, avoiding duplicates
+                const newContent = m.content ? [...m.content.filter(f => f.name !== file.name), file] : [file];
+                return { ...m, content: newContent };
+            }
+            return m;
+        });
+
+        await subjectRef.update({ modules: newModules });
+        return { success: true };
+    } catch (error) {
+        console.error('Error adding content to module:', error);
+        return { success: false, error: 'Failed to update module content.' };
+    }
+}
+
+export async function updateSubjectQuestions(subjectName: string, questionsJson: string) {
+    const questionsRef = db.collection('subjects').doc(subjectName).collection('questions');
+    try {
+        const questions: Question[] = JSON.parse(questionsJson);
+        
+        // Delete all existing questions in a batch
+        const batch = db.batch();
+        const snapshot = await questionsRef.get();
+        snapshot.docs.forEach(doc => batch.delete(doc.ref));
+        
+        // Add all new questions in the same batch
+        questions.forEach(q => {
+            const questionRef = questionsRef.doc(String(q.id));
+            batch.set(questionRef, q);
+        });
+        
+        await batch.commit();
+        return { success: true };
+    } catch (error) {
+        console.error('Error updating questions:', error);
+        if (error instanceof SyntaxError) {
+            return { success: false, error: 'Invalid JSON format.' };
+        }
+        return { success: false, error: 'Failed to update questions.' };
     }
 }
