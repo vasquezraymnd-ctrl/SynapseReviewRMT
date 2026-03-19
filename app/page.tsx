@@ -3,7 +3,8 @@ import React, { useState, useEffect, useMemo, createContext, useContext, ReactNo
 import {
     BarChart3, BookOpen, CheckCircle, ChevronDown, ClipboardCheck, Clock, Droplets, Edit, FileText, FlaskConical, 
     Home, Layers, Lock, LogOut, Maximize, Menu, Microscope, Moon, Play, Search, Shield, Sun, TestTube, Timer, 
-    Upload, UserCircle, Video, XCircle, Bookmark, Beaker, HeartPulse, Bug, ShieldCheck, Pipette, BookImage
+    Upload, UserCircle, Video, XCircle, Bookmark, Beaker, HeartPulse, Bug, ShieldCheck, Pipette, BookImage,
+    PanelLeftClose, PanelRightClose, AlertTriangle
 } from 'lucide-react';
 import Confetti from 'react-confetti';
 
@@ -198,14 +199,14 @@ const LoadingScreen = ({ onLoaded }: { onLoaded: () => void }) => {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: colors.gradient }}>
             <div className="text-center">
-                <h1 className="text-8xl font-bold tracking-wider relative" style={{ color: colors.text }}>
+                 <h1 className="text-5xl sm:text-6xl md:text-8xl font-bold tracking-wider relative" style={{ color: colors.text }}>
                     SYNAPSE
-                    <div className="absolute right-[-2rem] top-1/2 -translate-y-1/2 w-5 h-5">
+                    <div className="absolute right-[-1.5rem] md:right-[-2rem] top-1/2 -translate-y-1/2 w-3 h-3 md:w-5 md:h-5">
                         <div style={{ backgroundColor: colors.accent }} className="absolute w-full h-full rounded-full animate-ping"></div>
                         <div style={{ backgroundColor: colors.accent }} className="absolute w-full h-full rounded-full"></div>
                     </div>
                 </h1>
-                <p className="text-lg opacity-75 mt-4">Next-Gen Review for Next-Gen RMTs</p>
+                <p className="text-md md:text-lg opacity-75 mt-4">Next-Gen Review for Next-Gen RMTs</p>
             </div>
         </div>
     );
@@ -223,9 +224,9 @@ const LoginPage = () => {
                 </button>
             </div>
             <div className="text-center mb-12">
-                 <h1 className="text-8xl font-bold tracking-wider relative" style={{color: colors.text}}>
+                 <h1 className="text-5xl sm:text-6xl md:text-8xl font-bold tracking-wider relative" style={{color: colors.text}}>
                     SYNAPSE
-                    <div className="absolute right-[-2rem] top-1/2 -translate-y-1/2 w-5 h-5">
+                    <div className="absolute right-[-1.5rem] md:right-[-2rem] top-1/2 -translate-y-1/2 w-3 h-3 md:w-5 md:h-5">
                         <div style={{backgroundColor: colors.accent}} className="absolute w-full h-full rounded-full animate-ping"></div>
                         <div style={{backgroundColor: colors.accent}} className="absolute w-full h-full rounded-full"></div>
                     </div>
@@ -568,6 +569,8 @@ const QuizEngine = ({ questions, title, onFinish }: { questions: Question[]; tit
     const [showResult, setShowResult] = useState(false);
     const [showConfetti, setShowConfetti] = useState(false);
     const [reviewMode, setReviewMode] = useState(false);
+    const [showExitConfirm, setShowExitConfirm] = useState(false);
+    const [isPanelVisible, setIsPanelVisible] = useState(true);
 
     useEffect(() => {
         if (!isFullScreen) toggleFullScreen();
@@ -629,27 +632,48 @@ const QuizEngine = ({ questions, title, onFinish }: { questions: Question[]; tit
 
     return (
         <div className={`flex flex-col md:flex-row absolute inset-0 z-10`} style={{ background: colors.gradient }}>
-            <div className="w-full md:w-80 p-4 border-b md:border-r overflow-y-auto" style={{borderColor: colors.border}}>
-                 <div className={`flex items-center justify-center gap-2 p-3 font-bold rounded-lg mb-4 text-white text-lg ${timeLeft < 300 ? 'bg-red-500 animate-pulse' : ''}`} style={{backgroundColor: timeLeft >=300 ? colors.accent2 : ''}}><Timer/><span>{`${Math.floor(timeLeft/60)}:${('0'+timeLeft%60).slice(-2)}`}</span></div>
-                <h2 className="text-xl font-bold mb-4 px-2">{title}</h2>
-                <div className="grid grid-cols-5 gap-2">
-                    {Array.from({length: questions.length}).map((_,i) => (
-                        <button key={i} onClick={() => setCurrent(i)} className={`relative w-full h-12 text-md font-semibold rounded-lg ring-2 ${answers[i] !== null ? 'opacity-70' : ''}`}
-                          style={{
-                            backgroundColor: answers[i] !== null ? '#2ECC71' : colors.input,
-                            [ '--tw-ring-color' as any]: colors.accent
-                          }}
-                        >
-                            {i+1}
-                            {bookmarks[i] && <Bookmark size={12} className="absolute top-1 right-1" style={{color: colors.accent}} fill={colors.accent}/>}
-                        </button>
-                    ))}
+             {showExitConfirm && (
+                <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-20">
+                    <div className="p-8 rounded-2xl shadow-lg w-full max-w-sm" style={{backgroundColor: colors.card}}>
+                        <AlertTriangle className="text-red-500 mx-auto mb-4" size={48} />
+                        <h2 className="text-2xl font-bold text-center mb-4">Exit Assessment?</h2>
+                        <p className="text-center opacity-70 mb-8">Your progress will be saved, but the timer will continue to run. Are you sure you want to exit?</p>
+                        <div className="flex justify-around">
+                            <button onClick={() => setShowExitConfirm(false)} className="py-3 px-8 rounded-lg font-semibold" style={{backgroundColor: colors.input}}>Cancel</button>
+                            <button onClick={onFinish} className="py-3 px-8 bg-red-600 text-white rounded-lg font-semibold">Exit</button>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            )}
+            {isPanelVisible && (
+                <div className="w-full md:w-80 p-4 border-b md:border-r overflow-y-auto transition-all duration-300" style={{borderColor: colors.border}}>
+                    <div className={`flex items-center justify-center gap-2 p-3 font-bold rounded-lg mb-4 text-white text-lg ${timeLeft < 300 ? 'bg-red-500 animate-pulse' : ''}`} style={{backgroundColor: timeLeft >=300 ? colors.accent2 : ''}}><Timer/><span>{`${Math.floor(timeLeft/60)}:${('0'+timeLeft%60).slice(-2)}`}</span></div>
+                    <h2 className="text-xl font-bold mb-4 px-2">{title}</h2>
+                    <div className="grid grid-cols-5 gap-2">
+                        {Array.from({length: questions.length}).map((_,i) => (
+                            <button key={i} onClick={() => setCurrent(i)} className={`relative w-full h-12 text-md font-semibold rounded-lg ring-2 ${answers[i] !== null ? 'opacity-70' : ''}`}
+                            style={{
+                                backgroundColor: answers[i] !== null ? '#2ECC71' : colors.input,
+                                [ '--tw-ring-color' as any]: colors.accent
+                            }}
+                            >
+                                {i+1}
+                                {bookmarks[i] && <Bookmark size={12} className="absolute top-1 right-1" style={{color: colors.accent}} fill={colors.accent}/>}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
             <div className="flex-1 p-6 md:p-10 flex flex-col">
                 <div className="flex justify-between items-start mb-4">
-                    <p className="opacity-60">Question {current + 1} of {questions.length}</p>
                     <div className="flex items-center gap-2">
+                         <button onClick={() => setIsPanelVisible(!isPanelVisible)} className={`p-2 rounded-full hover:opacity-80`} style={{backgroundColor: colors.input}}>
+                            {isPanelVisible ? <PanelLeftClose /> : <PanelRightClose />}
+                        </button>
+                        <p className="opacity-60">Question {current + 1} of {questions.length}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => setShowExitConfirm(true)} className={`p-2 rounded-full hover:opacity-80`} style={{backgroundColor: colors.input}}><XCircle className="text-red-500"/></button>
                         <button onClick={toggleBookmark} className={`p-2 rounded-full hover:opacity-80 ${bookmarks[current] ? '' : 'opacity-60'}`} style={{backgroundColor: colors.input}}><Bookmark style={{color: bookmarks[current] ? colors.accent : colors.text, fill: bookmarks[current] ? colors.accent : 'transparent'}}/></button>
                         <button className="p-2 rounded-full hover:opacity-80 opacity-60" style={{backgroundColor: colors.input}} onClick={toggleFullScreen}><Maximize/></button>
                     </div>

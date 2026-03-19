@@ -16,6 +16,9 @@ Synapse is a premium Learning Management System (LMS) for MedTech students, buil
 - **Robust Assessment Engine:**
     - **100-Item Clinical Chemistry Quiz:** A comprehensive, 100-item sample quiz for Clinical Chemistry.
     - **Dynamic Practice Assessments:** Each subject has its own practice assessment, dynamically populated with a specific question set.
+    - **Enhanced Quiz Controls:**
+        - **Exit with Confirmation:** A prominent exit button allows users to leave the quiz at any time. A confirmation modal prevents accidental exits.
+        - **Collapsible Panel:** The side panel containing the timer and question navigation can be hidden, providing a more focused, full-screen view of the current question.
 - **Comprehensive & Granular Admin Panel:** A "Teacher's Lounge" for instructors to:
     - Select a specific subject to manage.
     - Upload course materials (PDFs, videos) directly to the selected subject's modules.
