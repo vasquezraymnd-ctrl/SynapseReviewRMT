@@ -8,7 +8,7 @@ Synapse Review is a comprehensive, web-based learning and assessment platform de
 
 ### **Application Architecture**
 -   **Framework:** Built with Next.js and the App Router.
--   **Deployment:** Hosted on Netlify.
+-   **Deployment:** Hosted on **Cloudflare Pages**.
 -   **Backend:** Powered by Firebase (Firestore Database and Firebase Storage).
 -   **Styling:** Styled with Tailwind CSS.
 
@@ -30,26 +30,41 @@ Synapse Review is a comprehensive, web-based learning and assessment platform de
 
 ---
 
-## Current Task: Final Deployment Fix for Early Access
+## Current Task: Deploy to Cloudflare Pages for Early Access
 
 ### **1. Goal**
-Resolve the final "Server Connection Error" on Netlify to make the application fully functional and ready for early access by co-teachers and students.
+Successfully deploy the application to Cloudflare Pages to make it fully functional and ready for early access by co-teachers and students.
 
 ### **2. Problem Analysis**
-The application is successfully building on Netlify but is failing at runtime. The screenshot provided shows a generic error message from the Next.js Server Component renderer. This happens in production environments and hides the specific error details for security reasons. The root cause is that the application cannot initialize the Firebase Admin SDK because the environment variables (credentials) are missing or incorrect in the Netlify deployment settings. Our previous attempts to throw an error are being caught and hidden by this Next.js security feature.
+The core runtime requirement for the application is access to its Firebase Admin SDK credentials. The application is now designed to check for these credentials and provide a specific error message if they are missing. This diagnostic feature will be critical for a successful Cloudflare Pages deployment.
 
 ### **3. Action Plan**
-I will make a final code change to bypass Next.js's generic error handling and display a precise, actionable error message directly in the user interface.
+I have removed the Netlify-specific configuration (`netlify.toml`) and updated this blueprint. The codebase is now ready for Cloudflare. The next steps are to be performed by you in the Cloudflare Pages dashboard.
 
--   **Step 1: Refactor Firebase Initialization:** I will modify `lib/firebase.ts` to gracefully handle missing environment variables instead of throwing an immediate error. This will prevent the Next.js renderer from catching the error and showing a generic message.
+### **4. Deployment Instructions for You on Cloudflare Pages**
 
--   **Step 2: Propagate Initialization Error:** I will update the main server action (`app/actions.ts`) that initializes the data (`seedInitialData`) to check if Firebase was successfully initialized. If it was not, the action will return a detailed error message explaining exactly which environment variable is missing.
+1.  **Connect Your GitHub Repository:**
+    *   In your Cloudflare dashboard, go to **Workers & Pages** and select **Create application**.
+    *   Connect to your GitHub account and select the `SynapseReviewRMT` repository.
 
--   **Step 3: Display Specific Error in UI:** The application's main page (`app/page.tsx`) is already designed to display any error message returned from the server. This change will ensure the *specific* error from Step 2 is shown to the user.
+2.  **Configure Your Build Settings:**
+    *   **Framework preset:** Select **Next.js**.
+    *   Cloudflare will automatically detect the correct build command (`next build`) and output directory (`.next`).
 
-### **4. Expected Outcome**
-After you push this final change, the deployed application will no longer show a generic error. Instead, it will display a clear, helpful message, such as:
+3.  **Set Your Environment Variables (This is the most critical step):**
+    *   Go to the **Environment Variables** section for your project.
+    *   You must add the following three variables. Click **"Encrypt"** for the `FIREBASE_PRIVATE_KEY`.
 
-> **"The following are missing: FIREBASE_PRIVATE_KEY. Please check your hosting provider's settings."**
+| Variable Name | Value | Notes |
+| :--- | :--- | :--- |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Your Firebase Project ID | (e.g., `synapse-review-12345`) |
+| `FIREBASE_CLIENT_EMAIL` | Your Firebase service account email | (e.g., `firebase-adminsdk-...@...`) |
+| `FIREBASE_PRIVATE_KEY` | Your Firebase service account private key | (The long key from your JSON file) |
 
-This will allow you to instantly identify and correct the specific typo or error in your Netlify environment variable settings. Once corrected, the application will be fully functional and ready for your students and colleagues.
+    *   **Crucially, ensure there are no typos in the names or values.** The error message on your deployed site will tell you if one is missing.
+
+4.  **Deploy and Verify:**
+    *   Save and Deploy.
+    *   Once the deployment is complete, visit your live Cloudflare Pages URL.
+    *   If you see the "Server Connection Error," read the specific message. It will tell you *exactly* which environment variable you need to fix in your Cloudflare settings.
+    *   Correct the variable, and the site will go live.
