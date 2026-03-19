@@ -21,10 +21,12 @@ function getDb() {
       });
       console.log('Firebase Admin SDK initialized.');
     } catch (error: any) {
-      // Prevent re-initialization error
-      if (error.code !== 'auth/invalid-credential') {
+      // A "duplicate-app" error can occur if the app is initialized multiple times,
+      // which can happen in development environments with hot-reloading.
+      // We can safely ignore this error, but all others should be thrown.
+      if (error.code !== 'app/duplicate-app') {
          console.error('Firebase Admin SDK initialization error:', error);
-         throw error; // Re-throw other errors
+         throw error;
       }
     }
   }
