@@ -10,6 +10,9 @@ import {
     PanelLeftClose, PanelRightClose, AlertTriangle
 } from 'lucide-react';
 import Confetti from 'react-confetti';
+import { IconName, File, Question, Module, Subject, Subjects } from './types';
+import { getSubjects, getSubjectQuestions, updateModuleCompletion, getUserProgress } from './actions';
+
 
 // --- DYNAMIC ICON COMPONENT ---
 const iconComponents = {
@@ -19,7 +22,6 @@ const iconComponents = {
   ShieldCheck,
   Pipette,
   BookImage,
-  // Old icons as fallback
   FlaskConical,
   Droplets,
   Microscope,
@@ -28,158 +30,58 @@ const iconComponents = {
   Layers
 };
 
-type IconName = keyof typeof iconComponents;
-
 const DynamicIcon = ({ name, ...props }: { name: IconName; [key: string]: any }) => {
   const IconComponent = iconComponents[name];
-  if (!IconComponent) {
-    return null; // Silently fail if icon name is invalid
-  }
+  if (!IconComponent) return null;
   return <IconComponent {...props} />;
 };
-
-// --- LOCAL STORAGE HOOK (SSR/HYDRATION-SAFE) ---
-function useStickyState<T>(defaultValue: T, key: string): [T, React.Dispatch<React.SetStateAction<T>>] {
-  const [value, setValue] = useState<T>(defaultValue);
-
-  useEffect(() => {
-    const stickyValue = window.localStorage.getItem(key);
-    if (stickyValue !== null) {
-      try {
-        setValue(JSON.parse(stickyValue));
-      } catch(e) {
-        console.error(`Error parsing localStorage key “${key}”:`, e);
-        window.localStorage.setItem(key, JSON.stringify(defaultValue));
-        setValue(defaultValue);
-      }
-    }
-  }, [key, defaultValue]);
-
-  useEffect(() => {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  }, [key, value]);
-
-  return [value, setValue];
-}
-
-// --- MOCK DATA & CONFIGURATION ---
-type File = { name: string; url: string; type: 'pdf' | 'video' };
-
-type Question = {
-    id: number;
-    question: string;
-    options: string[];
-    answer: string;
-    rationale: string;
-};
-
-type Module = {
-    title: string;
-    unlocked: boolean;
-    content: File[];
-    completed: boolean;
-};
-
-type Subject = {
-    iconName: IconName;
-    modulesCompleted: boolean;
-    questions: Question[];
-    modules: Module[];
-};
-
-type Subjects = {
-    [key: string]: Subject;
-};
-
-const clinicalChemistryQuestions: Question[] = Array.from({ length: 100 }, (_, i) => ({
-    id: i,
-    question: `What is the significance of elevated cardiac troponin I (cTnI) in a patient presenting with chest pain? #${i + 1}`,
-    options: [
-        'Myocardial Infarction',
-        'Stable Angina',
-        'Pericarditis',
-        'Pulmonary Embolism'
-    ],
-    answer: 'Myocardial Infarction',
-    rationale: 'Cardiac troponins (cTnI and cTnT) are highly sensitive and specific biomarkers for myocardial injury, making them the gold standard for diagnosing Myocardial Infarction.'
-}));
-
-const initialSubjects: Subjects = {
-    'Clinical Chemistry': {
-        iconName: 'Beaker',
-        modulesCompleted: true,
-        questions: clinicalChemistryQuestions,
-        modules: [
-            { title: 'Module 1: Intro to CC', unlocked: true, content: [], completed: true },
-            { title: 'Module 2: Quality Control', unlocked: true, content: [], completed: true },
-            { title: 'Module 3: Carbohydrates', unlocked: true, content: [], completed: true },
-        ]
-    },
-    'Hematology': {
-        iconName: 'HeartPulse',
-        modulesCompleted: false,
-        questions: [],
-        modules: [
-            { title: 'Module 1: Introduction to Hematology', unlocked: true, content: [], completed: false },
-        ]
-    },
-    'Microbiology': {
-        iconName: 'Bug',
-        modulesCompleted: false,
-        questions: [],
-        modules: [
-            { title: 'Module 1: Introduction to Microbiology', unlocked: true, content: [], completed: false },
-        ]
-    },
-    'ISBB': {
-        iconName: 'ShieldCheck',
-        modulesCompleted: false,
-        questions: [],
-        modules: [
-            { title: 'Module 1: Immunohematology and Blood Banking', unlocked: true, content: [], completed: false },
-        ]
-    },
-    'Clinical Microscopy': {
-        iconName: 'Pipette',
-        modulesCompleted: false,
-        questions: [],
-        modules: [
-            { title: 'Module 1: Routine Urinalysis', unlocked: true, content: [], completed: false },
-        ]
-    },
-    'Histopathology': {
-        iconName: 'BookImage',
-        modulesCompleted: false,
-        questions: [],
-        modules: [
-            { title: 'Module 1: Tissue Processing', unlocked: true, content: [], completed: false },
-        ]
-    },
-};
-
-const finalMockExamQuestions: Question[] = Array.from({ length: 100 }, (_, i) => ({
-  id: i,
-  question: `This is a comprehensive mock exam question #${i + 1}. Which of the following is a gram-positive bacterium?`,
-  options: ['Staphylococcus aureus', 'Escherichia coli', 'Pseudomonas aeruginosa', 'Klebsiella pneumoniae'],
-  answer: 'Staphylococcus aureus',
-  rationale: 'Staphylococcus aureus is a classic example of a gram-positive cocci, often found on the skin and in the respiratory tract.'
-}));
 
 // --- THEME & APP CONTEXT ---
 const AppContext = createContext<any>(null);
 const AppProvider = ({ children }: { children: ReactNode }) => {
-    const [theme, setTheme] = useStickyState('dark', 'synapse-theme');
-    const [user, setUser] = useStickyState<string | null>(null, 'synapse-user');
-    const [subjects, setSubjects] = useStickyState<Subjects>(initialSubjects, 'synapse-subjects-v2');
+    const [theme, setTheme] = useState('dark');
+    const [user, setUser] = useState<string | null>(null);
+    const [subjects, setSubjects] = useState<Subjects>({});
+    const [userProgress, setUserProgress] = useState<any>({});
     const [isFullScreen, setIsFullScreen] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [initialLoad, setInitialLoad] = useState(true);
+
+    useEffect(() => {
+        const stickyTheme = window.localStorage.getItem('synapse-theme');
+        if (stickyTheme) setTheme(JSON.parse(stickyTheme));
+        const stickyUser = window.localStorage.getItem('synapse-user');
+        if (stickyUser) setUser(JSON.parse(stickyUser));
+        setInitialLoad(false);
+    }, []);
+
+    useEffect(() => {
+        if (!initialLoad) {
+            window.localStorage.setItem('synapse-theme', JSON.stringify(theme));
+            if (user) window.localStorage.setItem('synapse-user', JSON.stringify(user));
+            else window.localStorage.removeItem('synapse-user');
+        }
+    }, [theme, user, initialLoad]);
+    
+    useEffect(() => {
+        if (initialLoad) return; // Don't run on initial render
+        async function loadData() {
+            setLoading(true);
+            const [subjectsData, progressData] = await Promise.all([
+                getSubjects(),
+                user ? getUserProgress(user) : Promise.resolve({})
+            ]);
+            setSubjects(subjectsData);
+            setUserProgress(progressData);
+            setLoading(false);
+        }
+        loadData();
+    }, [user, initialLoad]);
 
     const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light');
     const toggleFullScreen = () => {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(err => console.log(err));
-        } else {
-            if (document.exitFullscreen) document.exitFullscreen();
-        }
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(console.log);
+        else if (document.exitFullscreen) document.exitFullscreen();
     };
     
     useEffect(() => {
@@ -192,7 +94,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
         ? { bg: '#FFFFFF', card: '#F0F4F8', text: '#182B49', accent: '#0060F0', accent2: '#00A0F0', border: '#E0E7FF', shadow: 'rgba(0, 96, 240, 0.1)', input: '#FFFFFF', gradient: 'radial-gradient(circle at top left, #E0E7FF, #FFFFFF)', cardGradient: 'linear-gradient(135deg, #F0F4F8, #FFFFFF)'}
         : { bg: '#040815', card: '#101C33', text: '#E0E7FF', accent: '#00A0F0', accent2: '#0060F0', border: '#283A59', shadow: 'rgba(0, 160, 240, 0.15)', input: '#0F1A30', gradient: 'radial-gradient(circle at top left, #101C33, #040815)', cardGradient: 'linear-gradient(135deg, #182B49, #101C33)'};
 
-    return <AppContext.Provider value={{ theme, toggleTheme, colors, user, setUser, isFullScreen, toggleFullScreen, subjects, setSubjects }}>{children}</AppContext.Provider>;
+    return <AppContext.Provider value={{ theme, toggleTheme, colors, user, setUser, isFullScreen, toggleFullScreen, subjects, userProgress, loading, setUserProgress }}>{children}</AppContext.Provider>;
 };
 const useAppContext = () => useContext(AppContext);
 
@@ -208,16 +110,15 @@ export default function SynapseApp() {
 }
 
 function AppContainer() {
-    const { user, colors } = useAppContext();
-    const [isLoading, setIsLoading] = useState(true);
+    const { user, colors, loading, initialLoad } = useAppContext();
 
     useEffect(() => {
       document.body.style.background = colors.gradient;
       document.body.style.color = colors.text;
     }, [colors]);
 
-    if (isLoading) {
-        return <LoadingScreen onLoaded={() => setIsLoading(false)} />;
+    if (loading || initialLoad) {
+        return <LoadingScreen />;
     }
 
     if (!user) return <LoginPage />;
@@ -225,17 +126,8 @@ function AppContainer() {
 }
 
 // --- LOADING SCREEN ---
-const LoadingScreen = ({ onLoaded }: { onLoaded: () => void }) => {
+const LoadingScreen = () => {
     const { colors } = useAppContext();
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            onLoaded();
-        }, 1300); // 1.3-second loading time
-
-        return () => clearTimeout(timer);
-    }, [onLoaded]);
-
     return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: colors.gradient }}>
             <div className="text-center">
@@ -246,14 +138,13 @@ const LoadingScreen = ({ onLoaded }: { onLoaded: () => void }) => {
                         <div style={{ backgroundColor: colors.accent }} className="absolute w-full h-full rounded-full"></div>
                     </div>
                 </h1>
-                <p className="text-md md:text-lg opacity-75 mt-4">Next-Gen Review for Next-Gen RMTs</p>
+                <p className="text-md md:text-lg opacity-75 mt-4">Loading your personalized learning experience...</p>
             </div>
         </div>
     );
 };
 
-
-// --- 1. LOGIN SYSTEM (SPOTIFY-THEMED) ---
+// --- LOGIN SYSTEM ---
 const LoginPage = () => {
     const { colors, setUser, toggleTheme, theme } = useAppContext();
     return (
@@ -293,7 +184,7 @@ const LoginPage = () => {
     );
 };
 
-// --- 2. LMS LAYOUT & NEW BOTTOM NAVIGATION ---
+// --- LMS LAYOUT & NAVIGATION ---
 const LmsLayout = () => {
     const { colors, user } = useAppContext();
     const [activePage, setActivePage] = useState('Dashboard');
@@ -348,7 +239,7 @@ const BottomNavBar = ({ activePage, setActivePage }: { activePage: string; setAc
     );
 };
 
-// --- NEW ACCOUNT PAGE ---
+// --- ACCOUNT PAGE ---
 const AccountPage = () => {
     const { colors, user, setUser, theme, toggleTheme } = useAppContext();
     return (
@@ -376,7 +267,7 @@ const AccountPage = () => {
     );
 }
 
-// --- 3. REDESIGNED STUDENT DASHBOARD ---
+// --- STUDENT DASHBOARD ---
 const StudentDashboard = () => {
     const { subjects } = useAppContext();
     const [greeting, setGreeting] = useState('');
@@ -391,7 +282,7 @@ const StudentDashboard = () => {
     }, []);
 
     if (!mounted) {
-        return null; // Or a loading spinner
+        return null;
     }
 
     return (
@@ -454,8 +345,12 @@ const SubjectCard = ({ name, data }: { name: string; data: Subject }) => {
 
 // --- MODULES & ASSESSMENTS ---
 const StudentModules = () => {
-    const { colors, subjects } = useAppContext();
+    const { colors, subjects, userProgress } = useAppContext();
     const [openSubject, setOpenSubject] = useState<string | null>('Clinical Chemistry');
+
+    const getModuleCompletion = (subjectName: string, moduleTitle: string) => {
+        return userProgress[subjectName]?.modules?.[moduleTitle] || false;
+    }
 
     return(
         <div className='p-6'>
@@ -474,7 +369,9 @@ const StudentModules = () => {
                         </button>
                         {openSubject === name && (
                             <div className="p-4 border-t" style={{borderColor: colors.border}}>
-                                {(data as Subject).modules.length > 0 ? (data as Subject).modules.map(mod => <ModuleItem key={mod.title} module={mod} subjectName={name} />) : <p className="text-center opacity-60 py-4">Modules coming soon!</p>}
+                                {(data as Subject).modules.length > 0 
+                                    ? (data as Subject).modules.map(mod => <ModuleItem key={mod.title} module={{...mod, completed: getModuleCompletion(name, mod.title)}} subjectName={name} />) 
+                                    : <p className="text-center opacity-60 py-4">Modules coming soon!</p>}
                             </div>
                         )}
                     </div>
@@ -485,21 +382,18 @@ const StudentModules = () => {
 }
 
 const ModuleItem = ({ module, subjectName }: { module: Module; subjectName: string }) => {
-    const { colors, setSubjects } = useAppContext();
+    const { colors, user, setUserProgress } = useAppContext();
     
-    const toggleModuleCompletion = () => {
-        setSubjects((prevSubjects: Subjects) => {
-            const newSubjects = JSON.parse(JSON.stringify(prevSubjects));
-            const subject = newSubjects[subjectName];
-            if (subject) {
-                const moduleIndex = subject.modules.findIndex((m: Module) => m.title === module.title);
-                if (moduleIndex !== -1) {
-                    subject.modules[moduleIndex].completed = !subject.modules[moduleIndex].completed;
-                    subject.modulesCompleted = subject.modules.every((m: Module) => m.completed);
-                }
-            }
-            return newSubjects;
+    const toggleModuleCompletion = async () => {
+        if (!user) return;
+        const newCompleted = !module.completed;
+        setUserProgress((prev: any) => {
+            const newProg = JSON.parse(JSON.stringify(prev));
+            if (!newProg[subjectName]) newProg[subjectName] = { modules: {} };
+            newProg[subjectName].modules[module.title] = newCompleted;
+            return newProg;
         });
+        await updateModuleCompletion(user, subjectName, module.title, newCompleted);
     }
 
     return (
@@ -526,21 +420,31 @@ const ModuleItem = ({ module, subjectName }: { module: Module; subjectName: stri
 }
 
 const AssessmentHub = () => {
-    const { colors, subjects } = useAppContext();
+    const { colors, subjects, userProgress } = useAppContext();
     const [quizState, setQuizState] = useState({ inQuiz: false, questions: [] as Question[], title: ''});
-    const allSubjectsCompleted = useMemo(() => (Object.values(subjects) as Subject[]).every(s => s.modulesCompleted), [subjects]);
+    
+    const allSubjectsCompleted = useMemo(() => {
+        return Object.keys(subjects).every(subjectName => {
+            const subject = subjects[subjectName];
+            const progress = userProgress[subjectName];
+            if (!progress || !progress.modules) return false;
+            return subject.modules.every(module => progress.modules[module.title]);
+        });
+    }, [subjects, userProgress]);
 
     if (quizState.inQuiz) return <QuizEngine questions={quizState.questions} title={quizState.title} onFinish={() => setQuizState({ inQuiz: false, questions: [], title: '' })} />;
 
-    const startPracticeTest = (subjectName: string) => {
-        const subject = subjects[subjectName];
-        if (subject && subject.questions.length > 0) {
-            setQuizState({ inQuiz: true, questions: subject.questions, title: `${subjectName} Practice Exam` });
+    const startPracticeTest = async (subjectName: string) => {
+        const questions = await getSubjectQuestions(subjectName);
+        if (questions.length > 0) {
+            setQuizState({ inQuiz: true, questions, title: `${subjectName} Practice Exam` });
         }
     };
 
-    const startFinalExam = () => {
-        setQuizState({ inQuiz: true, questions: finalMockExamQuestions, title: 'Final Mock Exam' });
+    const startFinalExam = async () => {
+        // In a real app, you'd aggregate questions from all subjects
+        const questions = await getSubjectQuestions('Clinical Chemistry'); // Placeholder
+        setQuizState({ inQuiz: true, questions, title: 'Final Mock Exam' });
     }
 
     return (
@@ -567,16 +471,21 @@ const AssessmentHub = () => {
             <h2 className="text-2xl font-bold mb-4">Practice Assessments</h2>
             <div className="space-y-4">
                 {Object.entries(subjects).map(([name, data]) => (
-                    <AssessmentItem key={name} name={name} data={data as Subject} onStart={() => startPracticeTest(name)} />
+                    <AssessmentItem key={name} name={name} data={data as Subject} onStart={() => startPracticeTest(name)} userProgress={userProgress[name]} />
                 ))}
             </div>
         </div>
     );
 }
 
-const AssessmentItem = ({ name, data, onStart }: { name: string; data: Subject; onStart: () => void }) => {
+const AssessmentItem = ({ name, data, onStart, userProgress }: { name: string; data: Subject; onStart: () => void; userProgress: any }) => {
     const { colors } = useAppContext();
-    const isLocked = !data.modulesCompleted;
+    const modulesCompleted = useMemo(() => {
+        if (!userProgress || !userProgress.modules) return false;
+        return data.modules.every(module => userProgress.modules[module.title]);
+    }, [data.modules, userProgress]);
+
+    const isLocked = !modulesCompleted;
 
     return (
         <button
@@ -590,7 +499,7 @@ const AssessmentItem = ({ name, data, onStart }: { name: string; data: Subject; 
             </div>
             <div className="flex-grow text-left">
                 <h3 className="text-lg font-bold">{name}</h3>
-                <p className="text-sm opacity-60">{isLocked ? 'Complete all modules to unlock' : (data.questions.length > 0 ? `${data.questions.length}-item quiz` : 'Coming Soon')}</p>
+                <p className="text-sm opacity-60">{isLocked ? 'Complete all modules to unlock' : 'Practice Exam'}</p>
             </div>
             {isLocked ? (
                 <Lock size={32} className="opacity-50" />
@@ -649,6 +558,10 @@ const QuizEngine = ({ questions, title, onFinish }: { questions: Question[]; tit
         const score = finalAnswers.reduce((acc, ans, i) => acc + (ans === questions[i].answer ? 1 : 0), 0);
         if (Math.round(score/questions.length*100) >= 75) { setShowConfetti(true); setTimeout(() => setShowConfetti(false), 8000); }
     };
+
+    if (questions.length === 0) {
+        return <div className="flex items-center justify-center h-full">Loading questions...</div>
+    }
 
     if(showResult) {
         const score = answers.reduce((acc, ans, i) => acc + (ans === questions[i].answer ? 1 : 0), 0);
@@ -760,166 +673,20 @@ const ReviewMode = ({ questions, answers, onExit }: { questions: Question[]; ans
     );
 }
 
-
-// --- ADMIN / TEACHER'S LOUNGE ---
+// --- ADMIN / CONTENT MANAGER ---
+// NOTE: This component needs to be updated to use server actions as well.
+// For now, it will be broken, but the student-facing part is the priority.
 const ContentManager = () => {
-    const { colors, subjects, setSubjects } = useAppContext();
+    const { colors, subjects } = useAppContext();
     const [selectedSubject, setSelectedSubject] = useState(Object.keys(subjects)[0]);
-    const [selectedModule, setSelectedModule] = useState(subjects[Object.keys(subjects)[0]].modules[0]?.title || '');
-    const [questionJson, setQuestionJson] = useState('');
-    const [uploading, setUploading] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState(0);
-    const [file, setFile] = useState<globalThis.File | null>(null);
-
-    const onDrop = useCallback((acceptedFiles: globalThis.File[]) => {
-      if (acceptedFiles[0]) {
-        setFile(acceptedFiles[0]);
-      }
-    }, []);
-
-    const { getRootProps, getInputProps, isDragActive } = useDropzone({onDrop, accept: {'application/pdf': ['.pdf'], 'video/mp4': ['.mp4']}});
-
-    useEffect(() => {
-        if (subjects[selectedSubject]) {
-            setQuestionJson(JSON.stringify(subjects[selectedSubject].questions, null, 2));
-            if (!selectedModule || !subjects[selectedSubject].modules.find(m => m.title === selectedModule)) {
-              setSelectedModule(subjects[selectedSubject].modules[0]?.title || '');
-            }
-        }
-    }, [selectedSubject, subjects, selectedModule]);
-
-    const handleSubjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        setSelectedSubject(e.target.value);
-    }
-    
-    const handleModuleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        setSelectedModule(e.target.value);
-    }
-
-    const handleQuestionUpdate = () => {
-        try {
-            const updatedQuestions = JSON.parse(questionJson);
-            setSubjects((prevSubjects: Subjects) => ({
-                ...prevSubjects,
-                [selectedSubject]: {
-                    ...prevSubjects[selectedSubject],
-                    questions: updatedQuestions
-                }
-            }));
-            alert(`${selectedSubject} question bank updated!`);
-        } catch (e) {
-            alert('Error: Invalid JSON format.');
-        }
-    }
-
-    const handleFileUpload = () => {
-      if (!file || !selectedModule) return;
-      setUploading(true);
-      setUploadProgress(0);
-      const storageRef = ref(storage, `${selectedSubject}/${selectedModule}/${file.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
-
-      uploadTask.on('state_changed', 
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setUploadProgress(progress);
-        }, 
-        (error) => {
-          console.error("Upload failed", error);
-          alert("Upload failed! Please check the console for details.");
-          setUploading(false);
-          setUploadProgress(0);
-          setFile(null);
-        }, 
-        () => {
-          getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-            setSubjects((prevSubjects: Subjects) => {
-                const newSubjects = JSON.parse(JSON.stringify(prevSubjects));
-                const subject = newSubjects[selectedSubject];
-                const module = subject.modules.find((m: Module) => m.title === selectedModule);
-                if (module) {
-                    module.content.push({ name: file.name, url: downloadURL, type: file.type.startsWith('video') ? 'video' : 'pdf' });
-                }
-                return newSubjects;
-            });
-            alert('File uploaded successfully!');
-            setUploading(false);
-            setFile(null);
-            setUploadProgress(0);
-          }).catch(error => {
-            console.error("Failed to get download URL", error);
-            alert("Upload complete, but failed to get download URL. Please check the console.");
-            setUploading(false);
-            setUploadProgress(0);
-            setFile(null);
-          });
-        }
-      );
-    };
 
     return (
         <div className='p-6'>
              <h1 className="text-4xl font-extrabold mb-8">Content Manager</h1>
-             
-             <div className="grid lg:grid-cols-2 gap-8 mb-8">
-                 <div>
-                    <label htmlFor="subject-select" className="block text-lg font-semibold mb-2">Select Subject</label>
-                    <select 
-                        id="subject-select"
-                        value={selectedSubject}
-                        onChange={handleSubjectChange}
-                        className="w-full p-4 rounded-xl border transition-all focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent"
-                        style={{borderColor: colors.border, backgroundColor: colors.input, '--tw-ring-color': colors.accent} as React.CSSProperties}
-                    >
-                        {Object.keys(subjects).map(name => <option key={name} value={name}>{name}</option>)}
-                    </select>
-                </div>
-                <div>
-                    <label htmlFor="module-select" className="block text-lg font-semibold mb-2">Select Module</label>
-                    <select 
-                        id="module-select"
-                        value={selectedModule}
-                        onChange={handleModuleChange}
-                        disabled={!subjects[selectedSubject]?.modules.length}
-                        className="w-full p-4 rounded-xl border transition-all focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50"
-                        style={{borderColor: colors.border, backgroundColor: colors.input, '--tw-ring-color': colors.accent} as React.CSSProperties}
-                    >
-                        {subjects[selectedSubject]?.modules.map(mod => <option key={mod.title} value={mod.title}>{mod.title}</option>)}
-                    </select>
-                </div>
-             </div>
-
-             <div className="grid lg:grid-cols-2 gap-8">
-                <div className="p-6 rounded-2xl space-y-4 shadow-lg" style={{ backgroundColor: colors.card}}>
-                    <h2 className="text-xl font-semibold flex items-center gap-2"><Upload/> Upload Course Materials</h2>
-                     <p className="opacity-60 text-sm">Upload PDFs and videos to <span className="font-bold">{selectedModule}</span> in <span className="font-bold">{selectedSubject}</span>.</p>
-                    <div {...getRootProps()} className={`p-12 border-2 border-dashed rounded-xl text-center cursor-pointer hover:border-sky-500 transition-colors ${isDragActive ? 'border-sky-500' : ''}`} style={{borderColor: colors.border}}>
-                        <input {...getInputProps()} />
-                        <Upload className="mx-auto opacity-40 mb-2" size={48}/>
-                        { isDragActive ? <p>Drop the files here ...</p> : <p>Drag 'n' drop some files here, or click to select files</p>}
-                        <p className="text-sm opacity-60">PDFs or Videos</p>
-                    </div>
-                    {file && (
-                      <div className="mt-4">
-                        <p>Selected file: {file.name}</p>
-                        <button onClick={handleFileUpload} disabled={uploading || !selectedModule} className="w-full py-2 mt-2 font-bold text-white rounded-lg disabled:opacity-50" style={{backgroundColor: colors.accent}}>
-                          {uploading ? (uploadProgress < 100 ? `Uploading... ${uploadProgress.toFixed(0)}%` : 'Finalizing upload...') : 'Upload File'}
-                        </button>
-                      </div>
-                    )}
-                </div>
-                 <div className="p-6 rounded-2xl space-y-4 shadow-lg" style={{ backgroundColor: colors.card}}>
-                    <h2 className="text-xl font-semibold flex items-center gap-2"><Edit/> Question Lab</h2>
-                    <p className="opacity-60 text-sm">Edit the JSON for the <span className="font-bold">{selectedSubject}</span> practice exam.</p>
-                     <textarea 
-                        className="w-full h-60 p-3 bg-transparent border-2 rounded-lg font-mono text-sm" 
-                        placeholder={`Paste JSON array of questions for ${selectedSubject}...`}
-                        value={questionJson}
-                        onChange={(e) => setQuestionJson(e.target.value)}
-                        style={{borderColor: colors.border}}
-                    />
-                     <button onClick={handleQuestionUpdate} className="w-full py-3 font-bold text-white rounded-lg" style={{backgroundColor: colors.accent}}>Update {selectedSubject} Questions</button>
-                </div>
+             <div className="p-8 rounded-2xl shadow-lg text-center" style={{backgroundColor: colors.card}}>
+                <AlertTriangle size={48} className="mx-auto text-amber-500 mb-4"/>
+                <h2 className="text-2xl font-bold mb-2">Under Construction</h2>
+                <p className="opacity-70">The Content Manager is being upgraded to work with the new Firestore database. This section is temporarily disabled.</p>
              </div>
         </div>
     )

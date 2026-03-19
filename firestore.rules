@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow public read access to courses and their content
+    match /subjects/{subjectId} {
+      allow read: if true;
+      match /modules/{moduleId} {
+        allow read: if true;
+      }
+      match /questions/{questionId} {
+          allow read: if true;
+      }
+    }
+
+    // Users can only read and write their own progress
+    match /users/{userId}/progress/{progressId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
