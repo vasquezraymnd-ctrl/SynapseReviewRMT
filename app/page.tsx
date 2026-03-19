@@ -25,17 +25,8 @@ function AdminDashboard() {
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        // The seedInitialData function will now return the specific error message
-        // if Firebase initialization fails.
-        const seedResult = await seedInitialData();
-        if (!seedResult.success) {
-            // We set this specific error to be displayed in the UI.
-            throw new Error(seedResult.error);
-        }
-
         const fetchedSubjects = await getSubjects();
         if (!fetchedSubjects || Object.keys(fetchedSubjects).length === 0) {
-          // This case handles when seeding is successful but no subjects are retrieved.
           throw new Error('Database connection was successful, but no subjects were found.');
         }
         setSubjects(fetchedSubjects);

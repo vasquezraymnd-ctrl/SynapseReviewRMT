@@ -5,11 +5,7 @@ import { db, storage, initializationError } from '../lib/firebase';
 import { Question, Subjects, Module, File as DbFile, Subject } from './types';
 import { z } from 'zod';
 
-// This function is the entry point for initializing the app data.
-// It will now check for the Firebase initialization error first.
 export async function seedInitialData(): Promise<{ success: boolean, message?: string, error?: string }> {
-    // If the initializationError variable from firebase.ts is not null, it means
-    // Firebase failed to initialize. We immediately return this specific error.
     if (initializationError) {
         return { success: false, error: initializationError };
     }
@@ -17,10 +13,14 @@ export async function seedInitialData(): Promise<{ success: boolean, message?: s
     try {
         const subjectsRef = db.collection('subjects');
         const snapshot = await subjectsRef.get();
+        const batch = db.batch();
 
+        // Delete all existing documents in the subjects collection to ensure a clean slate
         if (!snapshot.empty) {
-            console.log('Database already seeded.');
-            return { success: true, message: 'Database already contains data.' };
+            console.log('Clearing existing subjects data...');
+            snapshot.docs.forEach(doc => {
+                batch.delete(doc.ref);
+            });
         }
 
         console.log('Seeding initial data...');
@@ -46,7 +46,6 @@ export async function seedInitialData(): Promise<{ success: boolean, message?: s
                     { title: 'Module 3: Carbohydrates', unlocked: true, content: [], completed: true },
                 ]
             },
-            // Other subjects omitted for brevity but are present in the actual seeding
             'Hematology': {
                 iconName: 'HeartPulse', modulesCompleted: false, questions: [],
                 modules: [{ title: 'Module 1: Introduction to Hematology', unlocked: true, content: [], completed: false }]
@@ -69,19 +68,18 @@ export async function seedInitialData(): Promise<{ success: boolean, message?: s
             },
         };
 
-        const batch = db.batch();
         for (const [subjectName, subjectData] of Object.entries(initialSubjects)) {
             const docRef = subjectsRef.doc(subjectName);
             batch.set(docRef, subjectData);
         }
+        
         await batch.commit();
 
-        console.log('Database seeded successfully.');
-        return { success: true, message: 'Database seeded successfully.' };
+        console.log('Database re-seeded successfully.');
+        return { success: true, message: 'Database re-seeded successfully.' };
 
     } catch (error: any) {
         console.error('Error during data seeding:', error);
-        // This will catch any other errors during the seeding process itself.
         return { success: false, error: `An error occurred while seeding the database: ${error.message}` };
     }
 }
