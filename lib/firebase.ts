@@ -1,55 +1,34 @@
 
 import admin from 'firebase-admin';
 
-let db: admin.firestore.Firestore;
-let storage: admin.storage.Storage;
+const requiredEnvVars = [
+  'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+  'FIREBASE_CLIENT_EMAIL',
+  'FIREBASE_PRIVATE_KEY'
+];
 
-function initializeFirebaseAdmin() {
-  if (!admin.apps.length) {
-    const serviceAccount: admin.ServiceAccount = {
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
-    };
+const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
-    if (!serviceAccount.projectId || !serviceAccount.clientEmail || !serviceAccount.privateKey) {
-      throw new Error('Firebase Admin SDK credentials are not set in environment variables. Please check your .env.local file.');
-    }
+if (missingEnvVars.length > 0) {
+  throw new Error(`Firebase Admin SDK credentials are not set in environment variables. The following are missing: ${missingEnvVars.join(', ')}. Please check your .env.local file for local development and your hosting provider's settings for deployment.`);
+}
 
-    try {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        storageBucket: `${serviceAccount.projectId}.appspot.com`,
-      });
-      console.log('Firebase Admin SDK initialized.');
-    } catch (error: any) {
-      if (error.code !== 'app/duplicate-app') {
-        console.error('Firebase Admin SDK initialization error:', error);
-        throw error;
-      }
-    }
-  }
-  
-  if (!db) {
-    db = admin.firestore();
-  }
-  if (!storage) {
-    storage = admin.storage();
+if (!admin.apps.length) {
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined,
+      }),
+      storageBucket: `${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.appspot.com`
+    });
+  } catch (error: any) {
+    throw new Error(`Failed to initialize Firebase Admin SDK: ${error.message}`);
   }
 }
 
-function getDb() {
-  if (!db) {
-    initializeFirebaseAdmin();
-  }
-  return db;
-}
+const db = admin.firestore();
+const storage = admin.storage();
 
-function getStorage() {
-  if (!storage) {
-    initializeFirebaseAdmin();
-  }
-  return storage;
-}
-
-export { getDb, getStorage };
+export { db, storage, admin as default };
