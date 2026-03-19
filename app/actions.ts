@@ -35,18 +35,18 @@ export async function getSubjectQuestions(subjectName: string): Promise<Question
 }
 
 export async function handleLocalUploadAndUpdate(formData: FormData, subjectName: string, moduleTitle: string): Promise<{ success: boolean, error?: string, fileUrl?: string }> {
-    const file = formData.get('file') as globalThis.File | null;
-
-    if (!file) {
-        return { success: false, error: 'No file provided.' };
-    }
-
-    const storage = getStorage();
-    const bucket = storage.bucket();
-    const filePath = `uploads/${subjectName}/${moduleTitle}/${file.name}`;
-    const fileBuffer = Buffer.from(await file.arrayBuffer());
-
     try {
+        const file = formData.get('file') as globalThis.File | null;
+
+        if (!file) {
+            return { success: false, error: 'No file provided.' };
+        }
+
+        const storage = getStorage();
+        const bucket = storage.bucket();
+        const filePath = `uploads/${subjectName}/${moduleTitle}/${file.name}`;
+        const fileBuffer = Buffer.from(await file.arrayBuffer());
+
         const blob = bucket.file(filePath);
         const blobStream = blob.createWriteStream({
             metadata: {
@@ -97,7 +97,7 @@ export async function handleLocalUploadAndUpdate(formData: FormData, subjectName
 
     } catch (error: any) {
         console.error('Error uploading to Firebase:', error);
-        return { success: false, error: error.message };
+        return { success: false, error: `Upload failed: ${error.message}` };
     }
 }
 
@@ -128,95 +128,96 @@ export async function updateModuleCompletion(userId: string, subjectName: string
     return { success: true };
 }
 
-export async function seedInitialData() {
-    const db = getDb();
-    const subjectsRef = db.collection('subjects');
-    const snapshot = await subjectsRef.get();
-
-    if (!snapshot.empty) {
-        console.log('Database already seeded.');
-        return { success: true, message: 'Database already contains data.' };
-    }
-
-    console.log('Seeding initial data...');
-
-    const initialSubjects: Subjects = {
-         'Clinical Chemistry': {
-        iconName: 'Beaker',
-        modulesCompleted: true,
-        questions: Array.from({ length: 100 }, (_, i) => ({
-            id: i,
-            question: `What is the significance of elevated cardiac troponin I (cTnI) in a patient presenting with chest pain? #${i + 1}`,
-            options: [
-                'Myocardial Infarction',
-                'Stable Angina',
-                'Pericarditis',
-                'Pulmonary Embolism'
-            ],
-            answer: 'Myocardial Infarction',
-            rationale: 'Cardiac troponins (cTnI and cTnT) are highly sensitive and specific biomarkers for myocardial injury, making them the gold standard for diagnosing Myocardial Infarction.'
-        })),
-        modules: [
-            { title: 'Module 1: Intro to CC', unlocked: true, content: [], completed: true },
-            { title: 'Module 2: Quality Control', unlocked: true, content: [], completed: true },
-            { title: 'Module 3: Carbohydrates', unlocked: true, content: [], completed: true },
-        ]
-    },
-    'Hematology': {
-        iconName: 'HeartPulse',
-        modulesCompleted: false,
-        questions: [],
-        modules: [
-            { title: 'Module 1: Introduction to Hematology', unlocked: true, content: [], completed: false },
-        ]
-    },
-    'Microbiology': {
-        iconName: 'Bug',
-        modulesCompleted: false,
-        questions: [],
-        modules: [
-            { title: 'Module 1: Introduction to Microbiology', unlocked: true, content: [], completed: false },
-        ]
-    },
-    'ISBB': {
-        iconName: 'ShieldCheck',
-        modulesCompleted: false,
-        questions: [],
-        modules: [
-            { title: 'Module 1: Immunohematology and Blood Banking', unlocked: true, content: [], completed: false },
-        ]
-    },
-    'Clinical Microscopy': {
-        iconName: 'Pipette',
-        modulesCompleted: false,
-        questions: [],
-        modules: [
-            { title: 'Module 1: Routine Urinalysis', unlocked: true, content: [], completed: false },
-        ]
-    },
-    'Histopathology': {
-        iconName: 'BookImage',
-        modulesCompleted: false,
-        questions: [],
-        modules: [
-            { title: 'Module 1: Tissue Processing', unlocked: true, content: [], completed: false },
-        ]
-    },
-    };
-
-    const batch = db.batch();
-
-    for (const [subjectName, subjectData] of Object.entries(initialSubjects)) {
-        const docRef = subjectsRef.doc(subjectName);
-        batch.set(docRef, subjectData);
-    }
-
+export async function seedInitialData(): Promise<{ success: boolean, message?: string, error?: string }> {
     try {
+        const db = getDb();
+        const subjectsRef = db.collection('subjects');
+        const snapshot = await subjectsRef.get();
+
+        if (!snapshot.empty) {
+            console.log('Database already seeded.');
+            return { success: true, message: 'Database already contains data.' };
+        }
+
+        console.log('Seeding initial data...');
+
+        const initialSubjects: Subjects = {
+             'Clinical Chemistry': {
+                iconName: 'Beaker',
+                modulesCompleted: true,
+                questions: Array.from({ length: 100 }, (_, i) => ({
+                    id: i,
+                    question: `What is the significance of elevated cardiac troponin I (cTnI) in a patient presenting with chest pain? #${i + 1}`,
+                    options: [
+                        'Myocardial Infarction',
+                        'Stable Angina',
+                        'Pericarditis',
+                        'Pulmonary Embolism'
+                    ],
+                    answer: 'Myocardial Infarction',
+                    rationale: 'Cardiac troponins (cTnI and cTnT) are highly sensitive and specific biomarkers for myocardial injury, making them the gold standard for diagnosing Myocardial Infarction.'
+                })),
+                modules: [
+                    { title: 'Module 1: Intro to CC', unlocked: true, content: [], completed: true },
+                    { title: 'Module 2: Quality Control', unlocked: true, content: [], completed: true },
+                    { title: 'Module 3: Carbohydrates', unlocked: true, content: [], completed: true },
+                ]
+            },
+            'Hematology': {
+                iconName: 'HeartPulse',
+                modulesCompleted: false,
+                questions: [],
+                modules: [
+                    { title: 'Module 1: Introduction to Hematology', unlocked: true, content: [], completed: false },
+                ]
+            },
+            'Microbiology': {
+                iconName: 'Bug',
+                modulesCompleted: false,
+                questions: [],
+                modules: [
+                    { title: 'Module 1: Introduction to Microbiology', unlocked: true, content: [], completed: false },
+                ]
+            },
+            'ISBB': {
+                iconName: 'ShieldCheck',
+                modulesCompleted: false,
+                questions: [],
+                modules: [
+                    { title: 'Module 1: Immunohematology and Blood Banking', unlocked: true, content: [], completed: false },
+                ]
+            },
+            'Clinical Microscopy': {
+                iconName: 'Pipette',
+                modulesCompleted: false,
+                questions: [],
+                modules: [
+                    { title: 'Module 1: Routine Urinalysis', unlocked: true, content: [], completed: false },
+                ]
+            },
+            'Histopathology': {
+                iconName: 'BookImage',
+                modulesCompleted: false,
+                questions: [],
+                modules: [
+                    { title: 'Module 1: Tissue Processing', unlocked: true, content: [], completed: false },
+                ]
+            },
+        };
+
+        const batch = db.batch();
+
+        for (const [subjectName, subjectData] of Object.entries(initialSubjects)) {
+            const docRef = subjectsRef.doc(subjectName);
+            batch.set(docRef, subjectData);
+        }
+
         await batch.commit();
         console.log('Database seeded successfully.');
         return { success: true, message: 'Database seeded successfully.' };
+
     } catch (error: any) {
-        console.error('Error seeding database:', error);
-        return { success: false, error: error.message };
+        console.error('Error during data seeding or Firebase initialization:', error);
+        return { success: false, error: `Failed to connect to Firebase. Please ensure environment variables are set correctly on Netlify. Details: ${error.message}` };
     }
 }

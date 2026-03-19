@@ -35,20 +35,23 @@ function AdminDashboard() {
         initialEditingState[subjectName] = JSON.stringify(questions, null, 2);
       }
       setEditingQuestions(initialEditingState);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError('Failed to load data from the server. Please ensure your Firebase Admin SDK credentials are correctly set in the environment variables and restart the development server.');
+      setError(`Failed to load data from the server. Please ensure your Firebase Admin SDK credentials are correctly set. Details: ${err.message}`);
     }
   };
 
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        await seedInitialData();
+        const seedResult = await seedInitialData();
+        if (!seedResult.success) {
+            throw new Error(seedResult.error);
+        }
         await fetchSubjects();
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
-        setError('Failed to initialize the application. Please check the console for more details.');
+        setError(err.message);
       }
       setIsSeeding(false);
     };
@@ -90,14 +93,14 @@ function AdminDashboard() {
   };
 
   if (isSeeding) {
-    return <p className="text-white">Seeding initial data, please wait...</p>
+    return <p className="text-white">Connecting to the database...</p>
   }
 
   if (error) {
     return (
-        <div className="bg-red-800 p-8 rounded-lg shadow-lg text-center">
+        <div className="bg-red-800 p-8 rounded-lg shadow-lg text-center max-w-2xl">
             <h1 className="text-2xl font-bold mb-4">Server Connection Error</h1>
-            <p className="text-white">{error}</p>
+            <p className="text-white whitespace-pre-wrap">{error}</p>
         </div>
     );
   }
