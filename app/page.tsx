@@ -562,6 +562,7 @@ const QuizEngine = ({ questions, title, onFinish }: { questions: Question[]; tit
     const { colors, toggleFullScreen, isFullScreen } = useAppContext();
     const [current, setCurrent] = useState(0);
     const [answers, setAnswers] = useState<(string | null)[]>(() => Array(questions.length).fill(null));
+    const [selectedOption, setSelectedOption] = useState<string | null>(null);
     const [bookmarks, setBookmarks] = useState<boolean[]>(() => Array(questions.length).fill(false));
     const [timeLeft, setTimeLeft] = useState(questions.length * 72); // 1.2 min per question
     const [showResult, setShowResult] = useState(false);
@@ -577,9 +578,18 @@ const QuizEngine = ({ questions, title, onFinish }: { questions: Question[]; tit
         };
     }, []);
 
-    const handleAnswer = (option: string) => { 
-        const newAns = [...answers]; newAns[current] = option; setAnswers(newAns); 
-        if(current < questions.length - 1) setCurrent(current + 1); else { setShowResult(true); checkScore(newAns); }
+    const handleAnswer = () => { 
+        if (selectedOption === null) return;
+        const newAns = [...answers]; 
+        newAns[current] = selectedOption; 
+        setAnswers(newAns); 
+        setSelectedOption(null);
+        if(current < questions.length - 1) {
+            setCurrent(current + 1); 
+        } else { 
+            setShowResult(true); 
+            checkScore(newAns); 
+        }
     };
     
     const toggleBookmark = () => {
@@ -646,7 +656,10 @@ const QuizEngine = ({ questions, title, onFinish }: { questions: Question[]; tit
                 </div>
                 <h2 className="text-3xl font-semibold mb-8 flex-grow">{questions[current].question}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {questions[current].options.map(opt => <button key={opt} onClick={() => handleAnswer(opt)} className="p-5 text-left rounded-xl text-lg transition-colors hover:border-sky-500 border-2" style={{backgroundColor: colors.card, borderColor: colors.border}}>{opt}</button>)}
+                    {questions[current].options.map(opt => <button key={opt} onClick={() => setSelectedOption(opt)} className={`p-5 text-left rounded-xl text-lg transition-colors border-2 ${selectedOption === opt ? 'border-sky-500' : ''}`} style={{backgroundColor: colors.card, borderColor: selectedOption === opt ? colors.accent : colors.border}}>{opt}</button>)}
+                </div>
+                 <div className="mt-8 text-right">
+                    <button onClick={handleAnswer} disabled={selectedOption === null} className="py-3 px-8 rounded-lg font-semibold text-white disabled:opacity-50" style={{backgroundColor: colors.accent}}>Submit</button>
                 </div>
             </div>
         </div>
