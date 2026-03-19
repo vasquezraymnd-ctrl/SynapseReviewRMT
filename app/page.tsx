@@ -1,9 +1,9 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo, Suspense } from 'react';
-import { getSubjects, getUserProgress, updateModuleCompletion, getSubjectQuestions, handleLocalUploadAndUpdate, updateSubjectQuestions } from './actions';
-import { Subjects, Question } from './types';
+import React, { useState, useEffect, Suspense } from 'react';
+import { getSubjects, getSubjectQuestions, handleLocalUploadAndUpdate, updateSubjectQuestions, seedInitialData } from './actions';
+import { Subjects } from './types';
 import { Beaker, BookImage, Bug, HeartPulse, Pipette, ShieldCheck, Upload } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 
@@ -20,6 +20,40 @@ function AdminDashboard() {
   const [subjects, setSubjects] = useState<Subjects | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingQuestions, setEditingQuestions] = useState<{ [key: string]: string }>({});
+  const [isSeeding, setIsSeeding] = useState(true);
+
+  const fetchSubjects = async () => {
+    try {
+      const fetchedSubjects = await getSubjects();
+      if (!fetchedSubjects || Object.keys(fetchedSubjects).length === 0) {
+        throw new Error('No subjects returned from the server.');
+      }
+      setSubjects(fetchedSubjects);
+      const initialEditingState: { [key: string]: string } = {};
+      for (const subjectName of Object.keys(fetchedSubjects)) {
+        const questions = await getSubjectQuestions(subjectName);
+        initialEditingState[subjectName] = JSON.stringify(questions, null, 2);
+      }
+      setEditingQuestions(initialEditingState);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to load data from the server. Please ensure your Firebase Admin SDK credentials are correctly set in the environment variables and restart the development server.');
+    }
+  };
+
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        await seedInitialData();
+        await fetchSubjects();
+      } catch (err) {
+        console.error(err);
+        setError('Failed to initialize the application. Please check the console for more details.');
+      }
+      setIsSeeding(false);
+    };
+    initializeApp();
+  }, []);
 
   const onDrop = async (acceptedFiles: File[], subjectName: string, moduleTitle: string) => {
     const formData = new FormData();
@@ -29,8 +63,7 @@ function AdminDashboard() {
       const result = await handleLocalUploadAndUpdate(formData, subjectName, moduleTitle);
       if (result.success) {
         console.log('File uploaded and database updated!');
-        // Refresh subjects or update state locally
-        fetchSubjects();
+        fetchSubjects(); // Refresh data
       } else {
         throw new Error(result.error || 'Upload failed');
       }
@@ -50,44 +83,34 @@ function AdminDashboard() {
         throw new Error(result.error || 'Failed to save questions');
       }
       console.log('Questions updated successfully!');
-      const updatedSubjects = await getSubjects(); 
-      setSubjects(updatedSubjects);
+      fetchSubjects(); // Refresh data
     } catch (err: any) {
       setError(err.message);
     }
   };
 
-  useEffect(() => {
-    fetchSubjects();
-  }, []);
+  if (isSeeding) {
+    return <p className="text-white">Seeding initial data, please wait...</p>
+  }
 
-  const fetchSubjects = async () => {
-    try {
-      const fetchedSubjects = await getSubjects();
-      setSubjects(fetchedSubjects);
-      // Load existing questions for editing
-      const initialEditingState: { [key: string]: string } = {};
-      for (const subjectName of Object.keys(fetchedSubjects)) {
-        const questions = await getSubjectQuestions(subjectName);
-        initialEditingState[subjectName] = JSON.stringify(questions, null, 2);
-      }
-      setEditingQuestions(initialEditingState);
-    } catch (err: any) {
-      setError(err.message);
-    }
-  };
+  if (error) {
+    return (
+        <div className="bg-red-800 p-8 rounded-lg shadow-lg text-center">
+            <h1 className="text-2xl font-bold mb-4">Server Connection Error</h1>
+            <p className="text-white">{error}</p>
+        </div>
+    );
+  }
 
   return (
     <div className="p-8">
       <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
-      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">{error}</div>}
-      
       {subjects ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {Object.entries(subjects).map(([name, subject]) => (
             <div key={name} className="bg-gray-800 shadow-lg rounded-lg p-6">
               <h2 className="text-2xl font-semibold mb-4 text-white">{name}</h2>
-              {subject.modules.map(module => (
+              {subject.modules.map((module: any) => (
                 <ModuleUploader key={module.title} subjectName={name} module={module} onDrop={onDrop} />
               ))}
               <div className="mt-4">
@@ -132,37 +155,11 @@ function ModuleUploader({ subjectName, module, onDrop }: { subjectName: string, 
 }
 
 export default function Home() {
-    const [isAdmin, setIsAdmin] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        const checkAdmin = async () => {
-            try {
-                // Placeholder for actual admin check. 
-                // For now, we'll just assume the first user is an admin for demonstration.
-                setIsAdmin(true);
-            } catch (err: any) {
-                setError(err.message);
-            }
-        };
-        checkAdmin();
-    }, []);
-
-    if (error) {
-        return (
-            <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-gray-900 text-white">
-                <div className="bg-red-800 p-8 rounded-lg shadow-lg text-center">
-                    <h1 className="text-2xl font-bold mb-4">Server Error</h1>
-                    <p>{error}</p>
-                    <p className="mt-4 text-sm text-gray-300">Please check your Firebase Admin SDK credentials in your environment variables.</p>
-                </div>
-            </main>
-        );
-    }
+    const isAdmin = true; // Assuming admin for now
 
     return (
       <Suspense fallback={<div className="text-white">Loading...</div>}>
-        <main className="flex min-h-screen flex-col items-center justify-between p-24 bg-gray-900 text-white">
+        <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-gray-900 text-white">
             {isAdmin ? <AdminDashboard /> : <p>You do not have access to the admin dashboard.</p>}
         </main>
       </Suspense>

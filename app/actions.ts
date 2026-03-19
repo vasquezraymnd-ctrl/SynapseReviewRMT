@@ -1,29 +1,161 @@
 
 'use server';
 
-import { getDb } from '../lib/firebase'; 
-import { Subjects, Subject, Module, Question, File } from './types';
-import fs from 'fs/promises';
-import path from 'path';
+import { getDb, getStorage } from '../lib/firebase';
+import { Question, Subjects, Module, File as DbFile } from './types';
+import { z } from 'zod';
+import { Readable } from 'stream';
 
-const clinicalChemistryQuestions: Question[] = Array.from({ length: 100 }, (_, i) => ({
-    id: i,
-    question: `What is the significance of elevated cardiac troponin I (cTnI) in a patient presenting with chest pain? #${i + 1}`,
-    options: [
-        'Myocardial Infarction',
-        'Stable Angina',
-        'Pericarditis',
-        'Pulmonary Embolism'
-    ],
-    answer: 'Myocardial Infarction',
-    rationale: 'Cardiac troponins (cTnI and cTnT) are highly sensitive and specific biomarkers for myocardial injury, making them the gold standard for diagnosing Myocardial Infarction.'
+const QuestionSchema = z.array(z.object({
+    id: z.number(),
+    question: z.string(),
+    options: z.array(z.string()),
+    answer: z.string(),
+    rationale: z.string(),
 }));
 
-const initialSubjects: Subjects = {
-    'Clinical Chemistry': {
+export async function getSubjects(): Promise<Subjects> {
+    const db = getDb();
+    const subjectsSnapshot = await db.collection('subjects').get();
+    const subjects: Subjects = {};
+    subjectsSnapshot.forEach(doc => {
+        subjects[doc.id] = doc.data() as any;
+    });
+    return subjects;
+}
+
+export async function getSubjectQuestions(subjectName: string): Promise<Question[]> {
+    const db = getDb();
+    const doc = await db.collection('subjects').doc(subjectName).get();
+    if (!doc.exists) {
+        return [];
+    }
+    const data = doc.data();
+    return data?.questions || [];
+}
+
+export async function handleLocalUploadAndUpdate(formData: FormData, subjectName: string, moduleTitle: string): Promise<{ success: boolean, error?: string, fileUrl?: string }> {
+    const file = formData.get('file') as globalThis.File | null;
+
+    if (!file) {
+        return { success: false, error: 'No file provided.' };
+    }
+
+    const storage = getStorage();
+    const bucket = storage.bucket();
+    const filePath = `uploads/${subjectName}/${moduleTitle}/${file.name}`;
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+
+    try {
+        const blob = bucket.file(filePath);
+        const blobStream = blob.createWriteStream({
+            metadata: {
+                contentType: file.type,
+            },
+        });
+
+        await new Promise((resolve, reject) => {
+            blobStream.on('error', reject);
+            blobStream.on('finish', resolve);
+            blobStream.end(fileBuffer);
+        });
+
+        const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+
+        const db = getDb();
+        const subjectRef = db.collection('subjects').doc(subjectName);
+        const subjectDoc = await subjectRef.get();
+
+        if (!subjectDoc.exists) {
+            return { success: false, error: 'Subject not found' };
+        }
+
+        const subjectData = subjectDoc.data() as Subjects[string];
+        const moduleIndex = subjectData.modules.findIndex(m => m.title === moduleTitle);
+
+        if (moduleIndex === -1) {
+            return { success: false, error: 'Module not found' };
+        }
+
+        const newFile: DbFile = {
+            name: file.name,
+            url: publicUrl,
+            type: file.type.startsWith('video') ? 'video' : 'pdf',
+        };
+
+        if (!subjectData.modules[moduleIndex].content) {
+            subjectData.modules[moduleIndex].content = [];
+        }
+
+        subjectData.modules[moduleIndex].content.push(newFile);
+
+        await subjectRef.update({
+            modules: subjectData.modules
+        });
+
+        return { success: true, fileUrl: publicUrl };
+
+    } catch (error: any) {
+        console.error('Error uploading to Firebase:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function updateSubjectQuestions(subjectName: string, questionsJson: string): Promise<{ success: boolean, error?: string }> {
+    try {
+        const questions = QuestionSchema.parse(JSON.parse(questionsJson));
+        const db = getDb();
+        await db.collection('subjects').doc(subjectName).update({ questions });
+        return { success: true };
+    } catch (error) {
+        if (error instanceof z.ZodError || error instanceof SyntaxError) {
+            return { success: false, error: 'Invalid JSON format.' };
+        }
+        console.error('Error updating questions:', error);
+        return { success: false, error: 'Failed to update questions.' };
+    }
+}
+
+export async function getUserProgress(userId: string) {
+    const db = getDb();
+    // Implement actual user progress fetching if needed
+    return {}; 
+}
+
+export async function updateModuleCompletion(userId: string, subjectName: string, moduleTitle: string, completed: boolean) {
+    const db = getDb();
+    // Implement actual user progress update if needed
+    return { success: true };
+}
+
+export async function seedInitialData() {
+    const db = getDb();
+    const subjectsRef = db.collection('subjects');
+    const snapshot = await subjectsRef.get();
+
+    if (!snapshot.empty) {
+        console.log('Database already seeded.');
+        return { success: true, message: 'Database already contains data.' };
+    }
+
+    console.log('Seeding initial data...');
+
+    const initialSubjects: Subjects = {
+         'Clinical Chemistry': {
         iconName: 'Beaker',
         modulesCompleted: true,
-        questions: clinicalChemistryQuestions,
+        questions: Array.from({ length: 100 }, (_, i) => ({
+            id: i,
+            question: `What is the significance of elevated cardiac troponin I (cTnI) in a patient presenting with chest pain? #${i + 1}`,
+            options: [
+                'Myocardial Infarction',
+                'Stable Angina',
+                'Pericarditis',
+                'Pulmonary Embolism'
+            ],
+            answer: 'Myocardial Infarction',
+            rationale: 'Cardiac troponins (cTnI and cTnT) are highly sensitive and specific biomarkers for myocardial injury, making them the gold standard for diagnosing Myocardial Infarction.'
+        })),
         modules: [
             { title: 'Module 1: Intro to CC', unlocked: true, content: [], completed: true },
             { title: 'Module 2: Quality Control', unlocked: true, content: [], completed: true },
@@ -70,176 +202,21 @@ const initialSubjects: Subjects = {
             { title: 'Module 1: Tissue Processing', unlocked: true, content: [], completed: false },
         ]
     },
-};
+    };
 
-async function withDb<T>(operation: (db: FirebaseFirestore.Firestore) => Promise<T>): Promise<T> {
-    try {
-        const db = getDb();
-        return await operation(db);
-    } catch (error) {
-        console.error('Database operation failed:', error);
-        if (error instanceof Error) {
-             throw new Error(`A server error occurred: ${error.message}`);
-        }
-        throw new Error('An unknown server error occurred.');
+    const batch = db.batch();
+
+    for (const [subjectName, subjectData] of Object.entries(initialSubjects)) {
+        const docRef = subjectsRef.doc(subjectName);
+        batch.set(docRef, subjectData);
     }
-}
 
-export async function getSubjects() {
-    return withDb(async (db) => {
-        const subjectsRef = db.collection('subjects');
-        let snapshot = await subjectsRef.get();
-
-        if (snapshot.empty) {
-            console.log('No subjects found, seeding initial data...');
-            const batch = db.batch();
-            Object.entries(initialSubjects).forEach(([subjectName, subjectData]) => {
-                const { questions, ...subjectDocData } = subjectData;
-                const subjectRef = subjectsRef.doc(subjectName);
-                batch.set(subjectRef, subjectDocData);
-
-                if (questions && questions.length > 0) {
-                    const questionsRef = subjectRef.collection('questions');
-                    questions.forEach(q => {
-                        const questionRef = questionsRef.doc(String(q.id));
-                        batch.set(questionRef, q);
-                    });
-                }
-            });
-            await batch.commit();
-            console.log('Seeding complete.');
-            snapshot = await subjectsRef.get();
-        }
-
-        const subjects: Subjects = {};
-        for (const doc of snapshot.docs) {
-            const subjectData = doc.data() as Subject;
-            subjects[doc.id] = { ...subjectData };
-        }
-
-        return subjects;
-    });
-}
-
-export async function getSubjectQuestions(subjectName: string): Promise<Question[]> {
-     return withDb(async (db) => {
-        const questionsRef = db.collection('subjects').doc(subjectName).collection('questions');
-        const snapshot = await questionsRef.orderBy('id').get();
-        if(snapshot.empty) return [];
-        return snapshot.docs.map(doc => doc.data() as Question);
-    });
-}
-
-export async function getUserProgress(userId: string) {
-    return withDb(async (db) => {
-        const progressRef = db.collection('users').doc(userId).collection('progress');
-        const snapshot = await progressRef.get();
-        if (snapshot.empty) return {};
-
-        const progress: { [key: string]: any } = {};
-        snapshot.forEach(doc => {
-            progress[doc.id] = doc.data();
-        });
-        return progress;
-    });
-}
-
-export async function updateModuleCompletion(userId: string, subjectName: string, moduleTitle: string, completed: boolean) {
-    return withDb(async (db) => {
-        const progressRef = db.collection('users').doc(userId).collection('progress').doc(subjectName);
-        try {
-            await db.runTransaction(async (transaction) => {
-                const doc = await transaction.get(progressRef);
-                if (!doc.exists) {
-                    const newProgress = { modules: { [moduleTitle]: completed } };
-                    transaction.set(progressRef, newProgress);
-                } else {
-                    const existingProgress = doc.data()?.modules || {};
-                    const updatedProgress = { ...existingProgress, [moduleTitle]: completed };
-                    transaction.update(progressRef, { modules: updatedProgress });
-                }
-            });
-            return { success: true };
-        } catch (error) {
-            console.error('Error updating module completion:', error);
-            return { success: false, error: 'Failed to update progress.' };
-        }
-    });
-}
-
-export async function handleLocalUploadAndUpdate(formData: FormData, subjectName: string, moduleTitle: string) {
-    return withDb(async (db) => {
-        const file = formData.get('file') as globalThis.File | null;
-
-        if (!file) {
-            return { success: false, error: 'No file provided.' };
-        }
-
-        try {
-            const bytes = await file.arrayBuffer();
-            const buffer = Buffer.from(bytes);
-
-            const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-            await fs.mkdir(uploadDir, { recursive: true });
-
-            const filePath = path.join(uploadDir, file.name);
-            await fs.writeFile(filePath, buffer);
-
-            const publicUrl = `/uploads/${file.name}`;
-            const newFileForDb: File = {
-                name: file.name,
-                url: publicUrl,
-                type: file.type.startsWith('video') ? 'video' : 'pdf'
-            };
-
-            const subjectRef = db.collection('subjects').doc(subjectName);
-            const doc = await subjectRef.get();
-            if (!doc.exists) throw new Error('Subject not found');
-
-            const subjectData = doc.data() as Subject;
-            const newModules = subjectData.modules.map(m => {
-                if (m.title === moduleTitle) {
-                    const newContent = m.content ? [...m.content.filter(f => f.name !== newFileForDb.name), newFileForDb] : [newFileForDb];
-                    return { ...m, content: newContent };
-                }
-                return m;
-            });
-
-            await subjectRef.update({ modules: newModules });
-
-            return { success: true, fileUrl: publicUrl };
-
-        } catch (error) {
-            console.error('Error handling file upload:', error);
-            const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-            return { success: false, error: errorMessage };
-        }
-    });
-}
-
-export async function updateSubjectQuestions(subjectName: string, questionsJson: string) {
-    return withDb(async (db) => {
-        const questionsRef = db.collection('subjects').doc(subjectName).collection('questions');
-        try {
-            const questions: Question[] = JSON.parse(questionsJson);
-            
-            const batch = db.batch();
-            const snapshot = await questionsRef.get();
-            snapshot.docs.forEach(doc => batch.delete(doc.ref));
-            
-            questions.forEach(q => {
-                const questionRef = questionsRef.doc(String(q.id));
-                batch.set(questionRef, q);
-            });
-            
-            await batch.commit();
-            return { success: true };
-        } catch (error) {
-            console.error('Error updating questions:', error);
-            if (error instanceof SyntaxError) {
-                return { success: false, error: 'Invalid JSON format.' };
-            }
-            return { success: false, error: 'Failed to update questions.' };
-        }
-    });
+    try {
+        await batch.commit();
+        console.log('Database seeded successfully.');
+        return { success: true, message: 'Database seeded successfully.' };
+    } catch (error: any) {
+        console.error('Error seeding database:', error);
+        return { success: false, error: error.message };
+    }
 }

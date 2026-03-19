@@ -2,8 +2,9 @@
 import admin from 'firebase-admin';
 
 let db: admin.firestore.Firestore;
+let storage: admin.storage.Storage;
 
-function getDb() {
+function initializeFirebaseAdmin() {
   if (!admin.apps.length) {
     const serviceAccount: admin.ServiceAccount = {
       projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
@@ -18,15 +19,13 @@ function getDb() {
     try {
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
+        storageBucket: `${serviceAccount.projectId}.appspot.com`,
       });
       console.log('Firebase Admin SDK initialized.');
     } catch (error: any) {
-      // A "duplicate-app" error can occur if the app is initialized multiple times,
-      // which can happen in development environments with hot-reloading.
-      // We can safely ignore this error, but all others should be thrown.
       if (error.code !== 'app/duplicate-app') {
-         console.error('Firebase Admin SDK initialization error:', error);
-         throw error;
+        console.error('Firebase Admin SDK initialization error:', error);
+        throw error;
       }
     }
   }
@@ -34,8 +33,23 @@ function getDb() {
   if (!db) {
     db = admin.firestore();
   }
+  if (!storage) {
+    storage = admin.storage();
+  }
+}
 
+function getDb() {
+  if (!db) {
+    initializeFirebaseAdmin();
+  }
   return db;
 }
 
-export { getDb };
+function getStorage() {
+  if (!storage) {
+    initializeFirebaseAdmin();
+  }
+  return storage;
+}
+
+export { getDb, getStorage };
