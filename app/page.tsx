@@ -20,40 +20,39 @@ function AdminDashboard() {
   const [subjects, setSubjects] = useState<Subjects | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingQuestions, setEditingQuestions] = useState<{ [key: string]: string }>({});
-  const [isSeeding, setIsSeeding] = useState(true);
-
-  const fetchSubjects = async () => {
-    try {
-      const fetchedSubjects = await getSubjects();
-      if (!fetchedSubjects || Object.keys(fetchedSubjects).length === 0) {
-        throw new Error('No subjects returned from the server.');
-      }
-      setSubjects(fetchedSubjects);
-      const initialEditingState: { [key: string]: string } = {};
-      for (const subjectName of Object.keys(fetchedSubjects)) {
-        const questions = await getSubjectQuestions(subjectName);
-        initialEditingState[subjectName] = JSON.stringify(questions, null, 2);
-      }
-      setEditingQuestions(initialEditingState);
-    } catch (err: any) {
-      console.error(err);
-      setError(`Failed to load data from the server. Please ensure your Firebase Admin SDK credentials are correctly set. Details: ${err.message}`);
-    }
-  };
+  const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
     const initializeApp = async () => {
       try {
+        // The seedInitialData function will now return the specific error message
+        // if Firebase initialization fails.
         const seedResult = await seedInitialData();
         if (!seedResult.success) {
+            // We set this specific error to be displayed in the UI.
             throw new Error(seedResult.error);
         }
-        await fetchSubjects();
+
+        const fetchedSubjects = await getSubjects();
+        if (!fetchedSubjects || Object.keys(fetchedSubjects).length === 0) {
+          // This case handles when seeding is successful but no subjects are retrieved.
+          throw new Error('Database connection was successful, but no subjects were found.');
+        }
+        setSubjects(fetchedSubjects);
+
+        const initialEditingState: { [key: string]: string } = {};
+        for (const subjectName of Object.keys(fetchedSubjects)) {
+          const questions = await getSubjectQuestions(subjectName);
+          initialEditingState[subjectName] = JSON.stringify(questions, null, 2);
+        }
+        setEditingQuestions(initialEditingState);
+
       } catch (err: any) {
-        console.error(err);
+        console.error("Initialization Error:", err);
         setError(err.message);
+      } finally {
+        setIsInitializing(false);
       }
-      setIsSeeding(false);
     };
     initializeApp();
   }, []);
@@ -61,14 +60,15 @@ function AdminDashboard() {
   const onDrop = async (acceptedFiles: File[], subjectName: string, moduleTitle: string) => {
     const formData = new FormData();
     formData.append('file', acceptedFiles[0]);
-
     try {
       const result = await handleLocalUploadAndUpdate(formData, subjectName, moduleTitle);
       if (result.success) {
-        console.log('File uploaded and database updated!');
-        fetchSubjects(); // Refresh data
+        console.log('File uploaded successfully!');
+        // Refresh subjects to show new file
+        const refreshedSubjects = await getSubjects();
+        setSubjects(refreshedSubjects);
       } else {
-        throw new Error(result.error || 'Upload failed');
+        throw new Error(result.error || 'Upload failed unexpectedly.');
       }
     } catch (err: any) {
       setError(err.message);
@@ -83,58 +83,60 @@ function AdminDashboard() {
     try {
       const result = await updateSubjectQuestions(subjectName, editingQuestions[subjectName]);
       if (!result.success) {
-        throw new Error(result.error || 'Failed to save questions');
+        throw new Error(result.error || 'Failed to save questions.');
       }
       console.log('Questions updated successfully!');
-      fetchSubjects(); // Refresh data
+      // Optionally, re-fetch to confirm save, though not strictly necessary
     } catch (err: any) {
       setError(err.message);
     }
   };
 
-  if (isSeeding) {
-    return <p className="text-white">Connecting to the database...</p>
+  if (isInitializing) {
+    return <p className="text-white animate-pulse">Connecting to the server and initializing data...</p>;
   }
 
   if (error) {
     return (
-        <div className="bg-red-800 p-8 rounded-lg shadow-lg text-center max-w-2xl">
-            <h1 className="text-2xl font-bold mb-4">Server Connection Error</h1>
-            <p className="text-white whitespace-pre-wrap">{error}</p>
+        <div className="bg-red-800 p-8 rounded-lg shadow-2xl text-center max-w-2xl mx-auto">
+            <h1 className="text-3xl font-bold mb-4">Server Connection Error</h1>
+            <p className="text-white text-lg whitespace-pre-wrap font-mono bg-red-900 p-4 rounded-md">{error}</p>
         </div>
     );
   }
 
   return (
-    <div className="p-8">
-      <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
+    <div className="p-8 w-full max-w-7xl">
+      <h1 className="text-4xl font-bold mb-8 text-center">Teacher's Lounge (Admin)</h1>
       {subjects ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {Object.entries(subjects).map(([name, subject]) => (
-            <div key={name} className="bg-gray-800 shadow-lg rounded-lg p-6">
-              <h2 className="text-2xl font-semibold mb-4 text-white">{name}</h2>
+            <div key={name} className="bg-gray-800 shadow-xl rounded-lg p-6">
+              <h2 className="text-3xl font-semibold mb-6 text-white flex items-center">
+                {React.createElement(ICONS[subject.iconName] || Beaker, { className: 'mr-3'})} {name}
+              </h2>
               {subject.modules.map((module: Module) => (
                 <ModuleUploader key={module.title} subjectName={name} module={module} onDrop={onDrop} />
               ))}
-              <div className="mt-4">
-                <h3 className="text-xl font-semibold mb-2 text-white">Edit Questions (JSON)</h3>
+              <div className="mt-6">
+                <h3 className="text-2xl font-semibold mb-3 text-white">Edit Questions (JSON)</h3>
                 <textarea
-                  className="w-full h-64 p-2 border rounded bg-gray-700 text-white"
+                  className="w-full h-72 p-3 border-2 border-gray-600 rounded bg-gray-900 text-white font-mono text-sm focus:border-blue-500 focus:ring-blue-500 transition-colors"
                   value={editingQuestions[name] || ''}
                   onChange={(e) => handleQuestionChange(name, e.target.value)}
                 ></textarea>
                 <button 
-                  className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  className="mt-4 w-full px-4 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-transform transform hover:scale-105 shadow-lg"
                   onClick={() => handleQuestionSave(name)}
                 >
-                  Save Questions
+                  Save Questions for {name}
                 </button>
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-white">Loading subjects...</p>
+        <p className="text-white text-center">Loading subjects...</p>
       )}
     </div>
   );
@@ -144,13 +146,14 @@ function ModuleUploader({ subjectName, module, onDrop }: { subjectName: string, 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop: (files) => onDrop(files, subjectName, module.title) });
 
   return (
-    <div {...getRootProps()} className={`mt-4 p-4 border-2 border-dashed rounded-md ${isDragActive ? 'border-blue-500' : 'border-gray-600'}`}>
+    <div {...getRootProps()} className={`mt-4 p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${isDragActive ? 'border-blue-500 bg-gray-700' : 'border-gray-600 hover:border-gray-500'}`}>
       <input {...getInputProps()} />
       <div className="flex flex-col items-center justify-center text-center">
-        <Upload className="w-10 h-10 text-gray-400" />
-        <p className="mt-2 text-gray-400">Drop files here or click to upload for {module.title}</p>
+        <Upload className="w-12 h-12 text-gray-400 mb-2" />
+        <p className="text-lg text-gray-300">Drop files or click to upload for:</p>
+        <p className="font-semibold text-xl text-white">{module.title}</p>
         {module.content && module.content.map((file: DbFile) => (
-          <p key={file.url} className="text-sm text-green-400">Uploaded: {file.name}</p>
+          <p key={file.url} className="mt-2 text-sm text-green-400">✓ Uploaded: {file.name}</p>
         ))}
       </div>
     </div>
@@ -158,13 +161,11 @@ function ModuleUploader({ subjectName, module, onDrop }: { subjectName: string, 
 }
 
 export default function Home() {
-    const isAdmin = true; // Assuming admin for now
-
     return (
-      <Suspense fallback={<div className="text-white">Loading...</div>}>
-        <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-gray-900 text-white">
-            {isAdmin ? <AdminDashboard /> : <p>You do not have access to the admin dashboard.</p>}
-        </main>
-      </Suspense>
+        <Suspense fallback={<div className="flex min-h-screen flex-col items-center justify-center bg-gray-900 text-white text-2xl">Loading Application...</div>}>
+            <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-8 md:p-24 bg-gray-900 text-white">
+                <AdminDashboard />
+            </main>
+        </Suspense>
     );
 }
