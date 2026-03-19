@@ -225,6 +225,7 @@ const ContentManager = () => {
     const [selectedModule, setSelectedModule] = useState(subjects[Object.keys(subjects)[0]]?.modules[0]?.title || '');
     const [questionJson, setQuestionJson] = useState('');
     const [uploading, setUploading] = useState(false);
+    const [progress, setProgress] = useState(0);
     const [file, setFile] = useState<globalThis.File | null>(null);
     const [statusMessage, setStatusMessage] = useState<{type: 'success' | 'error', msg: string} | null>(null);
 
@@ -269,23 +270,39 @@ const ContentManager = () => {
     const handleFileUpload = async () => {
       if (!file || !selectedModule) return;
       setUploading(true);
-      setStatusMessage({type: 'success', msg: 'Starting upload...'});
+      setProgress(0);
+
+      const interval = setInterval(() => {
+        setProgress(prev => {
+            if (prev >= 95) {
+                clearInterval(interval);
+                return prev;
+            }
+            return prev + 5;
+        });
+      }, 500);
       
       const formData = new FormData();
       formData.append('file', file);
 
       const result = await handleLocalUploadAndUpdate(formData, selectedSubject, selectedModule);
+      
+      clearInterval(interval);
+      setProgress(100);
 
       if (result.success) {
           setStatusMessage({type: 'success', msg: 'File uploaded and linked successfully!'});
-          forceReloadSubjects(); // Reload subjects to show new content
+          forceReloadSubjects();
       } else {
           setStatusMessage({type: 'error', msg: `Error uploading file: ${result.error}`});
       }
 
-      setUploading(false);
-      setFile(null);
-      setTimeout(() => setStatusMessage(null), 5000);
+      setTimeout(() => {
+        setUploading(false);
+        setFile(null);
+        setStatusMessage(null);
+        setProgress(0);
+      }, 3000);
     };
 
     if (!selectedSubject) return <div className='p-6'><h1 className="text-4xl font-extrabold mb-8">Content Manager</h1><p>Loading subjects...</p></div>;
@@ -322,8 +339,9 @@ const ContentManager = () => {
                     {file && (
                       <div className="mt-4">
                         <p>Selected file: {file.name}</p>
-                        <button onClick={handleFileUpload} disabled={uploading || !selectedModule} className="w-full py-3 mt-2 font-bold text-white rounded-lg disabled:opacity-50" style={{backgroundColor: colors.accent}}>
-                          {uploading ? `Uploading...` : 'Upload File'}
+                        <button onClick={handleFileUpload} disabled={uploading || !selectedModule} className="w-full relative overflow-hidden py-3 mt-2 font-bold text-white rounded-lg disabled:opacity-50" style={{backgroundColor: colors.accent}}>
+                            <div className='absolute top-0 left-0 h-full bg-sky-400/50' style={{width: `${progress}%`}}></div>
+                            <span className='relative z-10'>{uploading ? `Uploading... ${progress}%` : 'Upload File'}</span>
                         </button>
                       </div>
                     )}
