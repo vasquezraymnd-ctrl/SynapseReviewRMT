@@ -12,7 +12,7 @@ Synapse is a premium Learning Management System (LMS) for MedTech students, buil
 - **Secure Login System:** Separate login portals for students and admins, with a redesigned, immersive login page.
 - **Mobile-First Navigation:** A bottom navigation bar provides easy access to all major sections of the application.
 - **Spotify-Inspired Dashboard:** A grid of large, visually engaging cards for each subject, similar to how Spotify displays playlists or albums.
-- **Moodle-Structured Modules:** Courses are organized by subject, with expandable modules that contain study materials.
+- **Moodle-Structured Modules:** Courses are organized by subject, with expandable modules that contain study materials. Students can now view and access uploaded PDFs and videos directly within each module.
 - **Robust Assessment Engine:**
     - **100-Item Clinical Chemistry Quiz:** A comprehensive, 100-item sample quiz for Clinical Chemistry.
     - **Dynamic Practice Assessments:** Each subject has its own practice assessment, dynamically populated with a specific question set.
@@ -20,8 +20,8 @@ Synapse is a premium Learning Management System (LMS) for MedTech students, buil
         - **Exit with Confirmation:** A prominent exit button allows users to leave the quiz at any time. A confirmation modal prevents accidental exits.
         - **Collapsible Panel:** The side panel containing the timer and question navigation can be hidden, providing a more focused, full-screen view of the current question.
 - **Comprehensive & Granular Admin Panel:** A "Teacher's Lounge" for instructors to:
-    - Select a specific subject to manage.
-    - **Upload Course Materials:** Upload PDFs and videos for each subject's modules using a drag-and-drop interface. The upload progress is displayed, and the files are stored in Firebase Storage.
+    - Select a specific subject and module to manage.
+    - **Upload Course Materials:** Upload PDFs and videos to the selected module using a drag-and-drop interface. The upload progress is displayed, and the files are stored in Firebase Storage, becoming immediately available to students.
     - Add or update the question bank for each subject's individual practice assessment via a JSON editor.
 - **Sequential Assessment Flow:** 
     - **Practice Assessments:** Each subject has its own practice assessment, which unlocks only after the student completes all modules for that subject.

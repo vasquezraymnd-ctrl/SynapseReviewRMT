@@ -63,6 +63,8 @@ function useStickyState<T>(defaultValue: T, key: string): [T, React.Dispatch<Rea
 }
 
 // --- MOCK DATA & CONFIGURATION ---
+type File = { name: string; url: string; type: 'pdf' | 'video' };
+
 type Question = {
     id: number;
     question: string;
@@ -74,7 +76,7 @@ type Question = {
 type Module = {
     title: string;
     unlocked: boolean;
-    content: { pdfs: number; videos: number };
+    content: File[];
     completed: boolean;
 };
 
@@ -108,9 +110,9 @@ const initialSubjects: Subjects = {
         modulesCompleted: true,
         questions: clinicalChemistryQuestions,
         modules: [
-            { title: 'Module 1: Intro to CC', unlocked: true, content: { pdfs: 1, videos: 1 }, completed: true },
-            { title: 'Module 2: Quality Control', unlocked: true, content: { pdfs: 2, videos: 1 }, completed: true },
-            { title: 'Module 3: Carbohydrates', unlocked: true, content: { pdfs: 1, videos: 2 }, completed: true },
+            { title: 'Module 1: Intro to CC', unlocked: true, content: [], completed: true },
+            { title: 'Module 2: Quality Control', unlocked: true, content: [], completed: true },
+            { title: 'Module 3: Carbohydrates', unlocked: true, content: [], completed: true },
         ]
     },
     'Hematology': { iconName: 'HeartPulse', modulesCompleted: false, questions: [], modules: [] },
@@ -473,9 +475,13 @@ const ModuleItem = ({ module, subjectName }: { module: Module; subjectName: stri
                 </button>
                 <div>
                     <p className="font-semibold">{module.title}</p>
-                    <div className="flex gap-4 text-sm opacity-60">
-                        {module.content.pdfs && <span className="flex items-center gap-1"><FileText size={14}/>{module.content.pdfs} PDF(s)</span>}
-                        {module.content.videos && <span className="flex items-center gap-1"><Video size={14}/>{module.content.videos} Video(s)</span>}
+                    <div className="flex flex-col gap-2 text-sm opacity-60 mt-2">
+                        {module.content.map(file => (
+                             <a href={file.url} target="_blank" rel="noopener noreferrer" key={file.name} className="flex items-center gap-2 hover:opacity-80">
+                                {file.type === 'pdf' ? <FileText size={14}/> : <Video size={14}/>}
+                                {file.name}
+                            </a>
+                        ))}
                     </div>
                 </div>
             </div>
@@ -724,12 +730,13 @@ const ReviewMode = ({ questions, answers, onExit }: { questions: Question[]; ans
 const ContentManager = () => {
     const { colors, subjects, setSubjects } = useAppContext();
     const [selectedSubject, setSelectedSubject] = useState(Object.keys(subjects)[0]);
+    const [selectedModule, setSelectedModule] = useState(subjects[Object.keys(subjects)[0]].modules[0]?.title || '');
     const [questionJson, setQuestionJson] = useState('');
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
-    const [file, setFile] = useState<File | null>(null);
+    const [file, setFile] = useState<globalThis.File | null>(null);
 
-    const onDrop = useCallback((acceptedFiles: File[]) => {
+    const onDrop = useCallback((acceptedFiles: globalThis.File[]) => {
       if (acceptedFiles[0]) {
         setFile(acceptedFiles[0]);
       }
@@ -740,11 +747,18 @@ const ContentManager = () => {
     useEffect(() => {
         if (subjects[selectedSubject]) {
             setQuestionJson(JSON.stringify(subjects[selectedSubject].questions, null, 2));
+            if (!selectedModule || !subjects[selectedSubject].modules.find(m => m.title === selectedModule)) {
+              setSelectedModule(subjects[selectedSubject].modules[0]?.title || '');
+            }
         }
-    }, [selectedSubject, subjects]);
+    }, [selectedSubject, subjects, selectedModule]);
 
     const handleSubjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         setSelectedSubject(e.target.value);
+    }
+    
+    const handleModuleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        setSelectedModule(e.target.value);
     }
 
     const handleQuestionUpdate = () => {
@@ -764,9 +778,9 @@ const ContentManager = () => {
     }
 
     const handleFileUpload = () => {
-      if (!file) return;
+      if (!file || !selectedModule) return;
       setUploading(true);
-      const storageRef = ref(storage, `${selectedSubject}/${file.name}`);
+      const storageRef = ref(storage, `${selectedSubject}/${selectedModule}/${file.name}`);
       const uploadTask = uploadBytesResumable(storageRef, file);
 
       uploadTask.on('state_changed', 
@@ -781,7 +795,15 @@ const ContentManager = () => {
         }, 
         () => {
           getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-            console.log('File available at', downloadURL);
+            setSubjects((prevSubjects: Subjects) => {
+                const newSubjects = JSON.parse(JSON.stringify(prevSubjects));
+                const subject = newSubjects[selectedSubject];
+                const module = subject.modules.find((m: Module) => m.title === selectedModule);
+                if (module) {
+                    module.content.push({ name: file.name, url: downloadURL, type: file.type.startsWith('video') ? 'video' : 'pdf' });
+                }
+                return newSubjects;
+            });
             alert('File uploaded successfully!');
             setUploading(false);
             setFile(null);
@@ -794,23 +816,38 @@ const ContentManager = () => {
         <div className='p-6'>
              <h1 className="text-4xl font-extrabold mb-8">Content Manager</h1>
              
-             <div className="mb-8">
-                <label htmlFor="subject-select" className="block text-lg font-semibold mb-2">Select Subject to Edit</label>
-                <select 
-                    id="subject-select"
-                    value={selectedSubject}
-                    onChange={handleSubjectChange}
-                    className="w-full p-4 rounded-xl border transition-all focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent"
-                    style={{borderColor: colors.border, backgroundColor: colors.input, '--tw-ring-color': colors.accent} as React.CSSProperties}
-                >
-                    {Object.keys(subjects).map(name => <option key={name} value={name}>{name}</option>)}
-                </select>
+             <div className="grid lg:grid-cols-2 gap-8 mb-8">
+                 <div>
+                    <label htmlFor="subject-select" className="block text-lg font-semibold mb-2">Select Subject</label>
+                    <select 
+                        id="subject-select"
+                        value={selectedSubject}
+                        onChange={handleSubjectChange}
+                        className="w-full p-4 rounded-xl border transition-all focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent"
+                        style={{borderColor: colors.border, backgroundColor: colors.input, '--tw-ring-color': colors.accent} as React.CSSProperties}
+                    >
+                        {Object.keys(subjects).map(name => <option key={name} value={name}>{name}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label htmlFor="module-select" className="block text-lg font-semibold mb-2">Select Module</label>
+                    <select 
+                        id="module-select"
+                        value={selectedModule}
+                        onChange={handleModuleChange}
+                        disabled={!subjects[selectedSubject]?.modules.length}
+                        className="w-full p-4 rounded-xl border transition-all focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50"
+                        style={{borderColor: colors.border, backgroundColor: colors.input, '--tw-ring-color': colors.accent} as React.CSSProperties}
+                    >
+                        {subjects[selectedSubject]?.modules.map(mod => <option key={mod.title} value={mod.title}>{mod.title}</option>)}
+                    </select>
+                </div>
              </div>
 
              <div className="grid lg:grid-cols-2 gap-8">
                 <div className="p-6 rounded-2xl space-y-4 shadow-lg" style={{ backgroundColor: colors.card}}>
                     <h2 className="text-xl font-semibold flex items-center gap-2"><Upload/> Upload Course Materials</h2>
-                     <p className="opacity-60 text-sm">Upload PDFs and videos for the modules in <span className="font-bold">{selectedSubject}</span>.</p>
+                     <p className="opacity-60 text-sm">Upload PDFs and videos to <span className="font-bold">{selectedModule}</span> in <span className="font-bold">{selectedSubject}</span>.</p>
                     <div {...getRootProps()} className={`p-12 border-2 border-dashed rounded-xl text-center cursor-pointer hover:border-sky-500 transition-colors ${isDragActive ? 'border-sky-500' : ''}`} style={{borderColor: colors.border}}>
                         <input {...getInputProps()} />
                         <Upload className="mx-auto opacity-40 mb-2" size={48}/>
@@ -820,7 +857,7 @@ const ContentManager = () => {
                     {file && (
                       <div className="mt-4">
                         <p>Selected file: {file.name}</p>
-                        <button onClick={handleFileUpload} disabled={uploading} className="w-full py-2 mt-2 font-bold text-white rounded-lg" style={{backgroundColor: colors.accent}}>
+                        <button onClick={handleFileUpload} disabled={uploading || !selectedModule} className="w-full py-2 mt-2 font-bold text-white rounded-lg disabled:opacity-50" style={{backgroundColor: colors.accent}}>
                           {uploading ? `Uploading... ${uploadProgress.toFixed(0)}%` : 'Upload File'}
                         </button>
                       </div>
