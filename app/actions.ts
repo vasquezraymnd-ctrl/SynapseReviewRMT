@@ -2,7 +2,7 @@
 'use server';
 
 import { getDb, getStorage } from '../lib/firebase';
-import { Question, Subjects, Module, File as DbFile } from './types';
+import { Question, Subjects, Module, File as DbFile, Subject } from './types';
 import { z } from 'zod';
 import { Readable } from 'stream';
 
@@ -19,7 +19,7 @@ export async function getSubjects(): Promise<Subjects> {
     const subjectsSnapshot = await db.collection('subjects').get();
     const subjects: Subjects = {};
     subjectsSnapshot.forEach(doc => {
-        subjects[doc.id] = doc.data() as any;
+        subjects[doc.id] = doc.data() as Subject;
     });
     return subjects;
 }

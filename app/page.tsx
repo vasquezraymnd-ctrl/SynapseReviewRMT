@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { getSubjects, getSubjectQuestions, handleLocalUploadAndUpdate, updateSubjectQuestions, seedInitialData } from './actions';
-import { Subjects } from './types';
+import { Subjects, Module, File as DbFile } from './types';
 import { Beaker, BookImage, Bug, HeartPulse, Pipette, ShieldCheck, Upload } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 
@@ -110,7 +110,7 @@ function AdminDashboard() {
           {Object.entries(subjects).map(([name, subject]) => (
             <div key={name} className="bg-gray-800 shadow-lg rounded-lg p-6">
               <h2 className="text-2xl font-semibold mb-4 text-white">{name}</h2>
-              {subject.modules.map((module: any) => (
+              {subject.modules.map((module: Module) => (
                 <ModuleUploader key={module.title} subjectName={name} module={module} onDrop={onDrop} />
               ))}
               <div className="mt-4">
@@ -137,7 +137,7 @@ function AdminDashboard() {
   );
 }
 
-function ModuleUploader({ subjectName, module, onDrop }: { subjectName: string, module: any, onDrop: (files: File[], subjectName: string, moduleTitle: string) => void }) {
+function ModuleUploader({ subjectName, module, onDrop }: { subjectName: string, module: Module, onDrop: (files: File[], subjectName: string, moduleTitle: string) => void }) {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop: (files) => onDrop(files, subjectName, module.title) });
 
   return (
@@ -146,7 +146,7 @@ function ModuleUploader({ subjectName, module, onDrop }: { subjectName: string, 
       <div className="flex flex-col items-center justify-center text-center">
         <Upload className="w-10 h-10 text-gray-400" />
         <p className="mt-2 text-gray-400">Drop files here or click to upload for {module.title}</p>
-        {module.content && module.content.map((file: any) => (
+        {module.content && module.content.map((file: DbFile) => (
           <p key={file.url} className="text-sm text-green-400">Uploaded: {file.name}</p>
         ))}
       </div>
