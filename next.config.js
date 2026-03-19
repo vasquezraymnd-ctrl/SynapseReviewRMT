@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   serverActions: {
-    bodySizeLimit: '50mb',
+    bodySizeLimit: '50mb', // Increase the body size limit to 50MB
   },
 };
 
