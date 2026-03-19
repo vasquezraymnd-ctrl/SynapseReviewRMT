@@ -6,7 +6,6 @@ import { getSubjects, getSubjectQuestions, handleLocalUploadAndUpdate, updateSub
 import { Subjects, Module, File as DbFile } from './types';
 import { Beaker, BookImage, Bug, HeartPulse, Pipette, ShieldCheck, Upload } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
-import { initializationError } from '../lib/firebase'; // Import initializationError
 
 const ICONS: { [key: string]: React.ElementType } = {
   Beaker,
@@ -26,10 +25,6 @@ function AdminDashboard() {
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        if (initializationError) {
-          throw new Error(initializationError);
-        }
-
         const fetchedSubjects = await getSubjects();
         if (!fetchedSubjects || Object.keys(fetchedSubjects).length === 0) {
           const seedResult = await seedInitialData();
