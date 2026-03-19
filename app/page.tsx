@@ -230,7 +230,10 @@ const ContentManager = () => {
     const [statusMessage, setStatusMessage] = useState<{type: 'success' | 'error', msg: string} | null>(null);
 
     const onDrop = useCallback((acceptedFiles: globalThis.File[]) => {
-      if (acceptedFiles[0]) setFile(acceptedFiles[0]);
+      if (acceptedFiles[0]) {
+        setFile(acceptedFiles[0]);
+        setStatusMessage(null); // Clear status on new file selection
+      }
     }, []);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({onDrop, accept: {'application/pdf': ['.pdf'], 'video/mp4': ['.mp4']}});
@@ -268,41 +271,42 @@ const ContentManager = () => {
     }
 
     const handleFileUpload = async () => {
-      if (!file || !selectedModule) return;
-      setUploading(true);
-      setProgress(0);
-
-      const interval = setInterval(() => {
-        setProgress(prev => {
-            if (prev >= 95) {
-                clearInterval(interval);
-                return prev;
-            }
-            return prev + 5;
-        });
-      }, 500);
-      
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const result = await handleLocalUploadAndUpdate(formData, selectedSubject, selectedModule);
-      
-      clearInterval(interval);
-      setProgress(100);
-
-      if (result.success) {
-          setStatusMessage({type: 'success', msg: 'File uploaded and linked successfully!'});
-          forceReloadSubjects();
-      } else {
-          setStatusMessage({type: 'error', msg: `Error uploading file: ${result.error}`});
-      }
-
-      setTimeout(() => {
-        setUploading(false);
-        setFile(null);
-        setStatusMessage(null);
+        if (!file || !selectedModule) return;
+        setUploading(true);
         setProgress(0);
-      }, 3000);
+        setStatusMessage(null);
+    
+        const interval = setInterval(() => {
+            setProgress(p => (p >= 95 ? p : p + 5));
+        }, 250);
+    
+        const formData = new FormData();
+        formData.append('file', file);
+    
+        try {
+            const result = await handleLocalUploadAndUpdate(formData, selectedSubject, selectedModule);
+            clearInterval(interval);
+            setProgress(100);
+    
+            if (result.success) {
+                setStatusMessage({type: 'success', msg: 'File uploaded and linked successfully!'});
+                forceReloadSubjects();
+            } else {
+                setStatusMessage({type: 'error', msg: `Upload failed: ${result.error || 'Unknown server error.'}`});
+            }
+        } catch (error) {
+            clearInterval(interval);
+            console.error("Upload error:", error);
+            setStatusMessage({type: 'error', msg: `Upload failed: ${error instanceof Error ? error.message : 'Check server logs for details.'}`});
+        }
+    
+        setTimeout(() => {
+            setUploading(false);
+            setFile(null);
+            setProgress(0);
+            // Keep the status message visible for a bit longer for errors
+            setTimeout(() => setStatusMessage(null), 2000);
+        }, 3000);
     };
 
     if (!selectedSubject) return <div className='p-6'><h1 className="text-4xl font-extrabold mb-8">Content Manager</h1><p>Loading subjects...</p></div>;
