@@ -6,6 +6,7 @@ import { getSubjects, getSubjectQuestions, handleLocalUploadAndUpdate, updateSub
 import { Subjects, Module, File as DbFile } from './types';
 import { Beaker, BookImage, Bug, HeartPulse, Pipette, ShieldCheck, Upload } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
+import { initializationError } from '../lib/firebase'; // Import initializationError
 
 const ICONS: { [key: string]: React.ElementType } = {
   Beaker,
@@ -25,18 +26,25 @@ function AdminDashboard() {
   useEffect(() => {
     const initializeApp = async () => {
       try {
+        if (initializationError) {
+          throw new Error(initializationError);
+        }
+
         const fetchedSubjects = await getSubjects();
         if (!fetchedSubjects || Object.keys(fetchedSubjects).length === 0) {
-          throw new Error('Database connection was successful, but no subjects were found.');
+          const seedResult = await seedInitialData();
+          if (!seedResult.success) {
+            throw new Error(seedResult.error || 'Failed to seed initial data.');
+          }
+          // Re-fetch subjects after seeding
+          const refetchedSubjects = await getSubjects();
+          if (!refetchedSubjects || Object.keys(refetchedSubjects).length === 0) {
+            throw new Error('Database connection was successful, but no subjects were found even after seeding.');
+          }
+          setSubjects(refetchedSubjects);
+        } else {
+          setSubjects(fetchedSubjects);
         }
-        setSubjects(fetchedSubjects);
-
-        const initialEditingState: { [key: string]: string } = {};
-        for (const subjectName of Object.keys(fetchedSubjects)) {
-          const questions = await getSubjectQuestions(subjectName);
-          initialEditingState[subjectName] = JSON.stringify(questions, null, 2);
-        }
-        setEditingQuestions(initialEditingState);
 
       } catch (err: any) {
         console.error("Initialization Error:", err);
@@ -47,6 +55,20 @@ function AdminDashboard() {
     };
     initializeApp();
   }, []);
+
+  useEffect(() => {
+    const setQuestions = async () => {
+        if(subjects){
+            const initialEditingState: { [key: string]: string } = {};
+            for (const subjectName of Object.keys(subjects)) {
+            const questions = await getSubjectQuestions(subjectName);
+            initialEditingState[subjectName] = JSON.stringify(questions, null, 2);
+            }
+            setEditingQuestions(initialEditingState);
+        }
+    }
+    setQuestions();
+  }, [subjects]);
 
   const onDrop = async (acceptedFiles: File[], subjectName: string, moduleTitle: string) => {
     const formData = new FormData();
@@ -98,7 +120,7 @@ function AdminDashboard() {
 
   return (
     <div className="p-8 w-full max-w-7xl">
-      <h1 className="text-4xl font-bold mb-8 text-center">Teacher&apos;s Lounge (Admin)</h1>
+      <h1 className="text-4xl font-bold mb-8 text-center">Teacher's Lounge (Admin)</h1>
       {subjects ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {Object.entries(subjects).map(([name, subject]) => (
