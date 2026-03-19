@@ -1,5 +1,8 @@
 'use client';
-import React, { useState, useEffect, useMemo, createContext, useContext, ReactNode } from 'react';
+import React, { useState, useEffect, useMemo, createContext, useContext, ReactNode, useCallback } from 'react';
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { storage } from '../lib/firebase';
+import { useDropzone } from 'react-dropzone';
 import {
     BarChart3, BookOpen, CheckCircle, ChevronDown, ClipboardCheck, Clock, Droplets, Edit, FileText, FlaskConical, 
     Home, Layers, Lock, LogOut, Maximize, Menu, Microscope, Moon, Play, Search, Shield, Sun, TestTube, Timer, 
@@ -722,6 +725,17 @@ const ContentManager = () => {
     const { colors, subjects, setSubjects } = useAppContext();
     const [selectedSubject, setSelectedSubject] = useState(Object.keys(subjects)[0]);
     const [questionJson, setQuestionJson] = useState('');
+    const [uploading, setUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [file, setFile] = useState<File | null>(null);
+
+    const onDrop = useCallback((acceptedFiles: File[]) => {
+      if (acceptedFiles[0]) {
+        setFile(acceptedFiles[0]);
+      }
+    }, []);
+
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({onDrop, accept: {'application/pdf': ['.pdf'], 'video/mp4': ['.mp4']}});
 
     useEffect(() => {
         if (subjects[selectedSubject]) {
@@ -749,6 +763,33 @@ const ContentManager = () => {
         }
     }
 
+    const handleFileUpload = () => {
+      if (!file) return;
+      setUploading(true);
+      const storageRef = ref(storage, `${selectedSubject}/${file.name}`);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      uploadTask.on('state_changed', 
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          setUploadProgress(progress);
+        }, 
+        (error) => {
+          console.error("Upload failed", error);
+          alert("Upload failed!");
+          setUploading(false);
+        }, 
+        () => {
+          getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+            console.log('File available at', downloadURL);
+            alert('File uploaded successfully!');
+            setUploading(false);
+            setFile(null);
+          });
+        }
+      );
+    };
+
     return (
         <div className='p-6'>
              <h1 className="text-4xl font-extrabold mb-8">Content Manager</h1>
@@ -770,11 +811,20 @@ const ContentManager = () => {
                 <div className="p-6 rounded-2xl space-y-4 shadow-lg" style={{ backgroundColor: colors.card}}>
                     <h2 className="text-xl font-semibold flex items-center gap-2"><Upload/> Upload Course Materials</h2>
                      <p className="opacity-60 text-sm">Upload PDFs and videos for the modules in <span className="font-bold">{selectedSubject}</span>.</p>
-                    <div className="p-12 border-2 border-dashed rounded-xl text-center cursor-pointer hover:border-sky-500 transition-colors" style={{borderColor: colors.border}}>
+                    <div {...getRootProps()} className={`p-12 border-2 border-dashed rounded-xl text-center cursor-pointer hover:border-sky-500 transition-colors ${isDragActive ? 'border-sky-500' : ''}`} style={{borderColor: colors.border}}>
+                        <input {...getInputProps()} />
                         <Upload className="mx-auto opacity-40 mb-2" size={48}/>
-                        <p className="font-semibold">Drag & Drop</p>
+                        { isDragActive ? <p>Drop the files here ...</p> : <p>Drag 'n' drop some files here, or click to select files</p>}
                         <p className="text-sm opacity-60">PDFs or Videos</p>
                     </div>
+                    {file && (
+                      <div className="mt-4">
+                        <p>Selected file: {file.name}</p>
+                        <button onClick={handleFileUpload} disabled={uploading} className="w-full py-2 mt-2 font-bold text-white rounded-lg" style={{backgroundColor: colors.accent}}>
+                          {uploading ? `Uploading... ${uploadProgress.toFixed(0)}%` : 'Upload File'}
+                        </button>
+                      </div>
+                    )}
                 </div>
                  <div className="p-6 rounded-2xl space-y-4 shadow-lg" style={{ backgroundColor: colors.card}}>
                     <h2 className="text-xl font-semibold flex items-center gap-2"><Edit/> Question Lab</h2>

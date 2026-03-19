@@ -21,7 +21,7 @@ Synapse is a premium Learning Management System (LMS) for MedTech students, buil
         - **Collapsible Panel:** The side panel containing the timer and question navigation can be hidden, providing a more focused, full-screen view of the current question.
 - **Comprehensive & Granular Admin Panel:** A "Teacher's Lounge" for instructors to:
     - Select a specific subject to manage.
-    - Upload course materials (PDFs, videos) directly to the selected subject's modules.
+    - **Upload Course Materials:** Upload PDFs and videos for each subject's modules using a drag-and-drop interface. The upload progress is displayed, and the files are stored in Firebase Storage.
     - Add or update the question bank for each subject's individual practice assessment via a JSON editor.
 - **Sequential Assessment Flow:** 
     - **Practice Assessments:** Each subject has its own practice assessment, which unlocks only after the student completes all modules for that subject.
