@@ -1,17 +1,26 @@
-'use client'
-import { initializeApp } from "firebase/app";
-import { getStorage } from "firebase/storage";
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
-};
+import admin from 'firebase-admin';
 
-const app = initializeApp(firebaseConfig);
-const storage = getStorage(app);
+// Check if the app is already initialized to prevent errors
+if (!admin.apps.length) {
+  const serviceAccount: admin.ServiceAccount = {
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    // Use environment variable for private key, ensuring it's correctly formatted
+    privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+  };
 
-export { storage };
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+    console.log('Firebase Admin SDK initialized.');
+  } catch (error) {
+    console.error('Firebase Admin SDK initialization error:', error);
+  }
+}
+
+// Export the firestore database instance
+const db = admin.firestore();
+
+export { db };

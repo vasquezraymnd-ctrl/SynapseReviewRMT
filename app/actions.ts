@@ -1,13 +1,12 @@
+
 'use server';
 
-import admin from '../lib/firebase-admin';
+import { db } from '../lib/firebase'; // Correctly import the db instance
 import { Subjects, Subject, Module, Question, File } from './types';
 import fs from 'fs/promises';
 import path from 'path';
 
-const db = admin.firestore();
-
-// --- INITIAL DATA (to be seeded into Firestore) ---
+// INITIAL DATA remains the same...
 const clinicalChemistryQuestions: Question[] = Array.from({ length: 100 }, (_, i) => ({
     id: i,
     question: `What is the significance of elevated cardiac troponin I (cTnI) in a patient presenting with chest pain? #${i + 1}`,
@@ -74,7 +73,8 @@ const initialSubjects: Subjects = {
     },
 };
 
-// --- SERVER ACTIONS ---
+
+// SERVER ACTIONS using the new 'db' instance from 'lib/firebase.ts'
 
 export async function getSubjects() {
     const subjectsRef = db.collection('subjects');
